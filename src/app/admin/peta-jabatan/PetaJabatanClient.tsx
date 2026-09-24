@@ -66,10 +66,11 @@ export default function PetaJabatanClient({ initialData }: { initialData: PetaJa
         await updatePetaJabatan(formData);
       } else if (modal === "hapus") {
         await hapusPetaJabatan(formData);
+        
       }
 
       closeModal();
-      router.refresh();
+
     } catch (error) {
       setError(error instanceof Error ? error.message : "Terjadi kesalahan.");
     } finally {

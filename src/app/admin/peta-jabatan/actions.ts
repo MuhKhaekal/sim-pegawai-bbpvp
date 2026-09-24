@@ -18,24 +18,34 @@ function getName(value: FormDataEntryValue | null) {
 
 export async function tambahPetaJabatan(formData: FormData) {
   await requireAdmin();
+
   const namaJabatan = getName(formData.get("nama_jabatan"));
   const kebutuhanIdeal = parsePositiveInt(formData.get("kebutuhan_ideal"));
+
   const kelasJabatanValue = getName(formData.get("kelas_jabatan"));
+
   const kelasJabatan = kelasJabatanValue === "" ? null : parsePositiveInt(formData.get("kelas_jabatan"), 0);
 
   if (!namaJabatan) {
-    throw new Error("Nama jabatan wajib diisi.");
+    return {
+      success: false,
+      message: "Nama jabatan wajib diisi.",
+    };
   }
 
   const existing = await sql`
     SELECT id
     FROM peta_jabatan
-    WHERE LOWER(TRIM(nama_jabatan)) = LOWER(TRIM(${namaJabatan}))
+    WHERE LOWER(TRIM(nama_jabatan)) =
+          LOWER(TRIM(${namaJabatan}))
     LIMIT 1
   `;
 
   if (existing.length > 0) {
-    throw new Error("Nama jabatan tersebut sudah terdaftar.");
+    return {
+      success: false,
+      message: "Nama jabatan tersebut sudah terdaftar.",
+    };
   }
 
   await sql`
@@ -54,6 +64,11 @@ export async function tambahPetaJabatan(formData: FormData) {
   revalidatePath("/admin/peta-jabatan");
   revalidatePath("/admin/tambah-pegawai");
   revalidatePath("/admin/data-pegawai");
+
+  return {
+    success: true,
+    message: "Jabatan berhasil ditambahkan.",
+  };
 }
 
 export async function updatePetaJabatan(formData: FormData) {
@@ -93,6 +108,11 @@ export async function updatePetaJabatan(formData: FormData) {
   revalidatePath("/admin/peta-jabatan");
   revalidatePath("/admin/tambah-pegawai");
   revalidatePath("/admin/data-pegawai");
+
+  return {
+    success: true,
+    message: "Jabatan berhasil ditambahkan.",
+  };
 }
 
 export async function hapusPetaJabatan(formData: FormData) {

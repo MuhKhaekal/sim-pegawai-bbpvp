@@ -19,7 +19,6 @@ interface Props {
 
 type ModalMode = "tambah" | "edit" | null;
 
-
 export default function PangkatGolonganClient({ initialData }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -106,9 +105,12 @@ export default function PangkatGolonganClient({ initialData }: Props) {
       });
 
       if (result.success) {
+        setMessage({
+          type: "success",
+          text: result.message,
+        });
         setModalMode(null);
         resetForm();
-        router.refresh();
       }
     } catch {
       setMessage({
@@ -137,7 +139,10 @@ export default function PangkatGolonganClient({ initialData }: Props) {
       });
 
       if (result.success) {
-        router.refresh();
+        setMessage({
+          type: "success",
+          text: result.message,
+        });
       }
     } catch {
       setMessage({
@@ -215,11 +220,7 @@ export default function PangkatGolonganClient({ initialData }: Props) {
                       <td className="px-5 py-4 font-semibold text-slate-700">{item.status_kepegawaian}</td>
                       <td className="px-5 py-4 text-center font-bold text-[#15406A]">{item.pangkat_golongan}</td>
                       <td className="px-5 py-4 text-center">
-                        {item.masa_kerja === null ? (
-                          <span className="text-slate-400">—</span>
-                        ) : (
-                          <span className="inline-flex min-w-10 justify-center rounded-lg bg-[#15406A]/10 px-2.5 py-1 font-bold text-[#15406A]">{item.masa_kerja}</span>
-                        )}
+                        {item.masa_kerja === null ? <span className="text-slate-400">—</span> : <span className="inline-flex min-w-10 justify-center rounded-lg bg-[#15406A]/10 px-2.5 py-1 font-bold text-[#15406A]">{item.masa_kerja}</span>}
                       </td>
                       <td className="px-5 py-4">
                         {/* <div className="flex justify-end gap-2">
