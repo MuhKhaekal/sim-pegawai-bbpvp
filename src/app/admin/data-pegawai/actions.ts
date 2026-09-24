@@ -6,27 +6,55 @@ import { requireAdmin } from "@/app/lib/admin-auth";
 
 const sql = neon(process.env.DATABASE_URL!);
 
-const text = (value: FormDataEntryValue | null) =>
+// ==========================================
+// HELPER FUNCTIONS
+// ==========================================
+
+const text = (value: FormDataEntryValue | null): string =>
   typeof value === "string" ? value.trim() : "";
 
-const nullableText = (value: FormDataEntryValue | null) => {
+const nullableText = (value: FormDataEntryValue | null): string | null => {
   const v = text(value);
   return v === "" ? null : v;
 };
 
-const positiveId = (value: FormDataEntryValue | null, label: string) => {
+const positiveId = (value: FormDataEntryValue | null, label: string): number => {
   const id = Number(value);
   if (!Number.isInteger(id) || id <= 0) throw new Error(`${label} tidak valid.`);
   return id;
 };
 
-const nonNegativeInt = (value: FormDataEntryValue | null, label: string, fallback = 0) => {
+const nonNegativeInt = (
+  value: FormDataEntryValue | null,
+  label: string,
+  fallback = 0
+): number => {
   const raw = text(value);
   if (raw === "") return fallback;
   const n = Number(raw);
-  if (!Number.isInteger(n) || n < 0) throw new Error(`${label} harus berupa bilangan bulat 0 atau lebih.`);
+  if (!Number.isInteger(n) || n < 0)
+    throw new Error(`${label} harus berupa bilangan bulat 0 atau lebih.`);
   return n;
 };
+
+// Helper pengganti parseNumber yang aman dari tipe FormDataEntryValue
+function parseNumber(value: FormDataEntryValue | null, fallback = 0): number {
+  if (value === null) return fallback;
+  const str = typeof value === "string" ? value.trim() : "";
+  if (str === "") return fallback;
+  const num = Number(str);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+// Type guard untuk error Postgres dari driver/Neon
+function isDatabaseError(err: unknown): err is { code: string; message: string } {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    typeof (err as Record<string, unknown>).code === "string"
+  );
+}
 
 function revalidatePegawai(id?: number) {
   revalidatePath("/admin");
@@ -38,6 +66,10 @@ function revalidatePegawai(id?: number) {
     revalidatePath(`/admin/edit-pegawai/${id}`);
   }
 }
+
+// ==========================================
+// A. TAMBAH PEGAWAI
+// ==========================================
 
 export async function tambahPegawai(formData: FormData) {
   await requireAdmin();
@@ -83,7 +115,7 @@ export async function tambahPegawai(formData: FormData) {
       tmt_pangkat_terakhir, jabatan, tmt_jabatan_terakhir, status_kepegawaian,
       sisa_cuti_tahun_lalu, cuti_tahun_ini, jabatan_id, pangkat_golongan_id, bidang_unit_kerja_id
     ) VALUES (
-      ${nama}, ${nip}, ${tempatLahir}, ${tanggalLahir}, ${jabatan.nama_jabatan}, ${pangkat.pangkat_golongan},
+      ${nama}, ${nip}, ${tempatLahir}, ${tanggalLahir}, ${bidang.nama_bidang}, ${pangkat.pangkat_golongan},
       ${tmtPangkat}, ${jabatan.nama_jabatan}, ${tmtJabatan}, ${status},
       ${sisaLalu}, ${cutiKini}, ${jabatanId}, ${pangkatId}, ${bidangId}
     )
@@ -92,6 +124,10 @@ export async function tambahPegawai(formData: FormData) {
   revalidatePegawai();
   return { success: true, message: "Data pegawai berhasil ditambahkan." };
 }
+
+// ==========================================
+// B. UPDATE PEGAWAI
+// ==========================================
 
 export async function updatePegawai(id: number, formData: FormData) {
   await requireAdmin();
@@ -147,6 +183,10 @@ export async function updatePegawai(id: number, formData: FormData) {
   return { success: true, message: "Data pegawai berhasil diperbarui." };
 }
 
+// ==========================================
+// C. HAPUS PEGAWAI
+// ==========================================
+
 export async function hapusPegawai(id: number) {
   await requireAdmin();
   if (!Number.isInteger(id) || id <= 0) return { success: false, message: "ID pegawai tidak valid." };
@@ -155,14 +195,20 @@ export async function hapusPegawai(id: number) {
     const result = await sql.transaction([
       sql`SELECT id, nama FROM data_pegawai WHERE id = ${id} FOR UPDATE`,
       sql`DELETE FROM leave_records WHERE pegawai_id = ${id}`,
-      sql`DELETE FROM data_pegawai WHERE id = ${id}`
+      sql`DELETE FROM data_pegawai WHERE id = ${id}`,
     ]);
     if (!result[0].length) return { success: false, message: "Pegawai tidak ditemukan." };
     revalidatePegawai();
     return { success: true, message: "Data pegawai berhasil dihapus." };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Gagal menghapus pegawai:", error);
-    return { success: false, message: error?.code === "23503" ? "Pegawai masih dipakai oleh data lain dan tidak dapat dihapus." : "Gagal menghapus data pegawai." };
+    const isForeignKeyViolation = isDatabaseError(error) && error.code === "23503";
+    return {
+      success: false,
+      message: isForeignKeyViolation
+        ? "Pegawai masih dipakai oleh data lain dan tidak dapat dihapus."
+        : "Gagal menghapus data pegawai.",
+    };
   }
 }
 
@@ -170,7 +216,13 @@ export async function hapusPegawai(id: number) {
 // D. SIMPAN / EDIT CUTI TAHUNAN
 // ==========================================
 
-export async function simpanCutiTahunan(pegawaiId: number, bulanAngka: number, tahun: number, durasiBaru: number, keterangan = "") {
+export async function simpanCutiTahunan(
+  pegawaiId: number,
+  bulanAngka: number,
+  tahun: number,
+  durasiBaru: number,
+  keterangan = ""
+) {
   if (!Number.isInteger(durasiBaru) || durasiBaru <= 0) {
     return {
       success: false,
@@ -202,7 +254,6 @@ export async function simpanCutiTahunan(pegawaiId: number, bulanAngka: number, t
         WHERE id = ${pegawaiId}
         FOR UPDATE
       `,
-
       sql`
         SELECT
           COALESCE(SUM(durasi), 0) AS total_durasi
@@ -213,7 +264,6 @@ export async function simpanCutiTahunan(pegawaiId: number, bulanAngka: number, t
           AND bulan_angka = ${bulanAngka}
           AND tahun = ${tahun}
       `,
-
       sql`
         SELECT
           COALESCE(SUM(durasi), 0) AS total_durasi
@@ -244,21 +294,18 @@ export async function simpanCutiTahunan(pegawaiId: number, bulanAngka: number, t
     }
 
     const quotaLalu = Number(pegawaiRows[0].sisa_cuti_tahun_lalu) || 0;
-
     const quotaKini = Number(pegawaiRows[0].cuti_tahun_ini) || 0;
-
     const durasiLama = Number(existingRows[0]?.total_durasi) || 0;
-
     const totalCutiLainnya = Number(otherRows[0]?.total_durasi) || 0;
 
     const totalKuota = quotaLalu + quotaKini;
-
     const totalPemakaianSetelahEdit = totalCutiLainnya + durasiBaru;
 
     if (totalPemakaianSetelahEdit > totalKuota) {
       const sisaKuota = totalKuota - totalCutiLainnya;
-
-      throw new Error(`Kuota tidak cukup. Sisa kuota yang tersedia untuk perubahan ini adalah ${sisaKuota} hari.`);
+      throw new Error(
+        `Kuota tidak cukup. Sisa kuota yang tersedia untuk perubahan ini adalah ${sisaKuota} hari.`
+      );
     }
 
     await sql`
@@ -298,11 +345,11 @@ export async function simpanCutiTahunan(pegawaiId: number, bulanAngka: number, t
 
     return {
       success: true,
-      message: durasiLama > 0 ? "Data cuti berhasil diperbarui." : "Cuti Tahunan berhasil dicatat.",
+      message:
+        durasiLama > 0 ? "Data cuti berhasil diperbarui." : "Cuti Tahunan berhasil dicatat.",
     };
   } catch (error: unknown) {
     console.error("Gagal memproses cuti tahunan:", error);
-
     return {
       success: false,
       message: error instanceof Error ? error.message : "Gagal menyimpan cuti tahunan.",
@@ -317,18 +364,13 @@ export async function simpanCutiTahunan(pegawaiId: number, bulanAngka: number, t
 export async function simpanCutiLainnya(formData: FormData) {
   try {
     const pegawaiId = parseNumber(formData.get("pegawaiId"));
-
     const jenis = String(formData.get("jenis") ?? "").trim();
-
     const bulan = parseNumber(formData.get("bulan"));
-
     const durasi = parseNumber(formData.get("durasi"));
-
     const keterangan = String(formData.get("keterangan") ?? "").trim();
-
     const tahun = parseNumber(formData.get("tahun"), new Date().getFullYear());
 
-    if (!pegawaiId) {
+    if (!pegawaiId || pegawaiId <= 0) {
       throw new Error("Pegawai tidak valid.");
     }
 
@@ -357,7 +399,6 @@ export async function simpanCutiLainnya(formData: FormData) {
           AND bulan_angka = ${bulan}
           AND tahun = ${tahun}
       `,
-
       sql`
         INSERT INTO leave_records (
           pegawai_id,
@@ -389,7 +430,6 @@ export async function simpanCutiLainnya(formData: FormData) {
     };
   } catch (error: unknown) {
     console.error("Gagal menyimpan cuti lainnya:", error);
-
     return {
       success: false,
       message: error instanceof Error ? error.message : "Gagal menyimpan data cuti.",
@@ -401,7 +441,12 @@ export async function simpanCutiLainnya(formData: FormData) {
 // F. HAPUS SATU DATA CUTI
 // ==========================================
 
-export async function hapusCuti(pegawaiId: number, bulan: number, tahun: number, jenis: string) {
+export async function hapusCuti(
+  pegawaiId: number,
+  bulan: number,
+  tahun: number,
+  jenis: string
+) {
   try {
     if (!pegawaiId || !bulan || !tahun || !jenis) {
       throw new Error("Data penghapusan tidak lengkap.");
@@ -437,7 +482,6 @@ export async function hapusCuti(pegawaiId: number, bulan: number, tahun: number,
     };
   } catch (error: unknown) {
     console.error("Gagal menghapus cuti:", error);
-
     return {
       success: false,
       message: error instanceof Error ? error.message : "Gagal menghapus data cuti.",
@@ -479,7 +523,6 @@ export async function bersihkanSemuaCutiPegawai(pegawaiId: number, tahun: number
     };
   } catch (error: unknown) {
     console.error("Gagal membersihkan seluruh cuti:", error);
-
     return {
       success: false,
       message: error instanceof Error ? error.message : "Gagal membersihkan data cuti.",
@@ -491,7 +534,11 @@ export async function bersihkanSemuaCutiPegawai(pegawaiId: number, tahun: number
 // H. RESET KUOTA
 // ==========================================
 
-export async function resetCutiPegawai(id: number, cutiTahunIni: number, sisaLalu: number) {
+export async function resetCutiPegawai(
+  id: number,
+  cutiTahunIni: number,
+  sisaLalu: number
+) {
   try {
     if (!Number.isInteger(cutiTahunIni) || !Number.isInteger(sisaLalu)) {
       throw new Error("Kuota harus berupa bilangan bulat.");
@@ -520,7 +567,6 @@ export async function resetCutiPegawai(id: number, cutiTahunIni: number, sisaLal
     };
   } catch (error: unknown) {
     console.error("Gagal mereset kuota cuti:", error);
-
     return {
       success: false,
       message: error instanceof Error ? error.message : "Gagal mereset kuota.",
@@ -531,19 +577,12 @@ export async function resetCutiPegawai(id: number, cutiTahunIni: number, sisaLal
 // ==========================================
 // I. UPDATE / EDIT KUOTA CUTI
 // ==========================================
-//
-// Berbeda dengan RESET.
-//
-// Fungsi ini digunakan ketika admin mengklik:
-// - SISA TAHUN LALU
-// - THN 2026
-//
-// Hanya mengubah kuota dasar.
-//
-// leave_records TIDAK DIUBAH.
-//
 
-export async function updateKuotaCutiPegawai(id: number, cutiTahunIni: number, sisaLalu: number) {
+export async function updateKuotaCutiPegawai(
+  id: number,
+  cutiTahunIni: number,
+  sisaLalu: number
+) {
   try {
     if (!Number.isInteger(id) || id <= 0) {
       throw new Error("ID pegawai tidak valid.");
@@ -566,7 +605,6 @@ export async function updateKuotaCutiPegawai(id: number, cutiTahunIni: number, s
         WHERE id = ${id}
         FOR UPDATE
       `,
-
       sql`
         SELECT
           COALESCE(SUM(durasi), 0) AS total_cuti_tahunan
@@ -592,11 +630,12 @@ export async function updateKuotaCutiPegawai(id: number, cutiTahunIni: number, s
     }
 
     const totalCutiTahunan = Number(cutiRows[0]?.total_cuti_tahunan) || 0;
-
     const totalKuotaBaru = sisaLalu + cutiTahunIni;
 
     if (totalKuotaBaru < totalCutiTahunan) {
-      throw new Error(`Kuota baru tidak boleh lebih kecil dari total cuti tahunan yang sudah digunakan (${totalCutiTahunan} hari).`);
+      throw new Error(
+        `Kuota baru tidak boleh lebih kecil dari total cuti tahunan yang sudah digunakan (${totalCutiTahunan} hari).`
+      );
     }
 
     await sql`
@@ -618,7 +657,6 @@ export async function updateKuotaCutiPegawai(id: number, cutiTahunIni: number, s
     };
   } catch (error: unknown) {
     console.error("Gagal memperbarui kuota cuti:", error);
-
     return {
       success: false,
       message: error instanceof Error ? error.message : "Gagal memperbarui kuota cuti.",
