@@ -26,3 +26,10 @@ export type Pegawai = {
   cuti_tahun_ini: number;
   riwayat_cuti: LeaveRecord[];
 };
+
+export type PetaJabatan = {
+  id: number;
+  nama_jabatan: string;
+  kebutuhan_ideal: number;
+  kelas_jabatan: number | null;
+};

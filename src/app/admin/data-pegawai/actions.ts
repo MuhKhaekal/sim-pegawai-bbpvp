@@ -2,118 +2,168 @@
 
 import { neon } from "@neondatabase/serverless";
 import { revalidatePath } from "next/cache";
+import { requireAdmin } from "@/app/lib/admin-auth";
 
 const sql = neon(process.env.DATABASE_URL!);
 
-// ==========================================
-// HELPER
-// ==========================================
+const text = (value: FormDataEntryValue | null) =>
+  typeof value === "string" ? value.trim() : "";
 
-const parseDate = (val: FormDataEntryValue | null): string | null => {
-  if (!val || typeof val !== "string" || val.trim() === "") {
-    return null;
-  }
-
-  return val;
+const nullableText = (value: FormDataEntryValue | null) => {
+  const v = text(value);
+  return v === "" ? null : v;
 };
 
-const parseNumber = (val: FormDataEntryValue | null, defaultValue = 0): number => {
-  if (!val || typeof val !== "string" || val.trim() === "") {
-    return defaultValue;
-  }
-
-  const num = parseInt(val, 10);
-
-  return Number.isNaN(num) ? defaultValue : num;
+const positiveId = (value: FormDataEntryValue | null, label: string) => {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) throw new Error(`${label} tidak valid.`);
+  return id;
 };
 
-// ==========================================
-// A. PEGAWAI
-// ==========================================
+const nonNegativeInt = (value: FormDataEntryValue | null, label: string, fallback = 0) => {
+  const raw = text(value);
+  if (raw === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) throw new Error(`${label} harus berupa bilangan bulat 0 atau lebih.`);
+  return n;
+};
+
+function revalidatePegawai(id?: number) {
+  revalidatePath("/admin");
+  revalidatePath("/admin/data-pegawai");
+  revalidatePath("/admin/tambah-pegawai");
+  revalidatePath("/admin/manajemen-cuti");
+  if (id) {
+    revalidatePath(`/admin/data-pegawai/${id}`);
+    revalidatePath(`/admin/edit-pegawai/${id}`);
+  }
+}
 
 export async function tambahPegawai(formData: FormData) {
-  const nipBersih = String(formData.get("nip") ?? "").replace(/\s/g, "");
+  await requireAdmin();
+
+  const nama = text(formData.get("nama"));
+  const nip = text(formData.get("nip")).replace(/\s/g, "");
+  const tempatLahir = nullableText(formData.get("tempat_lahir"));
+  const tanggalLahir = nullableText(formData.get("tanggal_lahir"));
+  const jabatanId = positiveId(formData.get("jabatan_id"), "Jabatan");
+  const bidangId = positiveId(formData.get("bidang_unit_kerja_id"), "Bidang/Unit Kerja");
+  const pangkatId = positiveId(formData.get("pangkat_golongan_id"), "Pangkat/Golongan");
+  const tmtPangkat = nullableText(formData.get("tmt_pangkat_terakhir"));
+  const tmtJabatan = nullableText(formData.get("tmt_jabatan_terakhir"));
+  const status = text(formData.get("status_kepegawaian"));
+  const sisaLalu = nonNegativeInt(formData.get("sisa_cuti_tahun_lalu"), "Sisa cuti tahun lalu");
+  const cutiKini = nonNegativeInt(formData.get("cuti_tahun_ini"), "Cuti tahun ini");
+
+  if (!nama) throw new Error("Nama pegawai wajib diisi.");
+  if (!/^\d{18}$/.test(nip)) throw new Error("NIP harus terdiri dari 18 digit angka.");
+  if (!status) throw new Error("Status kepegawaian wajib dipilih.");
+
+  const result = await sql.transaction([
+    sql`SELECT id FROM data_pegawai WHERE regexp_replace(nip, '[^0-9]', '', 'g') = ${nip} LIMIT 1`,
+    sql`SELECT id, nama_jabatan FROM peta_jabatan WHERE id = ${jabatanId}`,
+    sql`SELECT id, nama_bidang FROM bidang_unit_kerja WHERE id = ${bidangId}`,
+    sql`SELECT id, status_kepegawaian, pangkat_golongan FROM pangkat_golongan WHERE id = ${pangkatId}`,
+  ]);
+
+  if (result[0].length) throw new Error("NIP tersebut sudah terdaftar.");
+  const jabatan = result[1][0];
+  const bidang = result[2][0];
+  const pangkat = result[3][0];
+  if (!jabatan) throw new Error("Jabatan yang dipilih tidak ditemukan.");
+  if (!bidang) throw new Error("Bidang/Unit Kerja yang dipilih tidak ditemukan.");
+  if (!pangkat) throw new Error("Pangkat/Golongan yang dipilih tidak ditemukan.");
+  if (String(pangkat.status_kepegawaian).trim().toLowerCase() !== status.toLowerCase()) {
+    throw new Error("Status kepegawaian tidak sesuai dengan pangkat/golongan yang dipilih.");
+  }
 
   await sql`
     INSERT INTO data_pegawai (
-      nama,
-      nip,
-      tempat_lahir,
-      tanggal_lahir,
-      bidang,
-      pangkat_golongan,
-      tmt_pangkat_terakhir,
-      jabatan,
-      tmt_jabatan_terakhir,
-      status_kepegawaian,
-      sisa_cuti_tahun_lalu,
-      cuti_tahun_ini
-    )
-    VALUES (
-      ${formData.get("nama")},
-      ${nipBersih},
-      ${formData.get("tempat_lahir")},
-      ${parseDate(formData.get("tanggal_lahir"))},
-      ${formData.get("bidang")},
-      ${formData.get("pangkat_golongan")},
-      ${parseDate(formData.get("tmt_pangkat_terakhir"))},
-      ${formData.get("jabatan")},
-      ${parseDate(formData.get("tmt_jabatan_terakhir"))},
-      ${formData.get("status_kepegawaian")},
-      ${parseNumber(formData.get("sisa_cuti_tahun_lalu"))},
-      ${parseNumber(formData.get("cuti_tahun_ini"))}
+      nama, nip, tempat_lahir, tanggal_lahir, bidang, pangkat_golongan,
+      tmt_pangkat_terakhir, jabatan, tmt_jabatan_terakhir, status_kepegawaian,
+      sisa_cuti_tahun_lalu, cuti_tahun_ini, jabatan_id, pangkat_golongan_id, bidang_unit_kerja_id
+    ) VALUES (
+      ${nama}, ${nip}, ${tempatLahir}, ${tanggalLahir}, ${jabatan.nama_jabatan}, ${pangkat.pangkat_golongan},
+      ${tmtPangkat}, ${jabatan.nama_jabatan}, ${tmtJabatan}, ${status},
+      ${sisaLalu}, ${cutiKini}, ${jabatanId}, ${pangkatId}, ${bidangId}
     )
   `;
 
-  revalidatePath("/admin");
-  revalidatePath("/admin/data-pegawai");
-  revalidatePath("/admin/manajemen-cuti");
+  revalidatePegawai();
+  return { success: true, message: "Data pegawai berhasil ditambahkan." };
 }
-
-// ==========================================
-// B. UPDATE PEGAWAI
-// ==========================================
 
 export async function updatePegawai(id: number, formData: FormData) {
-  const nipBersih = String(formData.get("nip") ?? "").replace(/\s/g, "");
+  await requireAdmin();
+  if (!Number.isInteger(id) || id <= 0) throw new Error("ID pegawai tidak valid.");
+
+  const nama = text(formData.get("nama"));
+  const nip = text(formData.get("nip")).replace(/\s/g, "");
+  const tempatLahir = nullableText(formData.get("tempat_lahir"));
+  const tanggalLahir = nullableText(formData.get("tanggal_lahir"));
+  const jabatanId = positiveId(formData.get("jabatan_id"), "Jabatan");
+  const bidangId = positiveId(formData.get("bidang_unit_kerja_id"), "Bidang/Unit Kerja");
+  const pangkatId = positiveId(formData.get("pangkat_golongan_id"), "Pangkat/Golongan");
+  const tmtPangkat = nullableText(formData.get("tmt_pangkat_terakhir"));
+  const tmtJabatan = nullableText(formData.get("tmt_jabatan_terakhir"));
+  const status = text(formData.get("status_kepegawaian"));
+  const sisaLalu = nonNegativeInt(formData.get("sisa_cuti_tahun_lalu"), "Sisa cuti tahun lalu");
+  const cutiKini = nonNegativeInt(formData.get("cuti_tahun_ini"), "Cuti tahun ini");
+
+  if (!nama) throw new Error("Nama pegawai wajib diisi.");
+  if (!/^\d{18}$/.test(nip)) throw new Error("NIP harus terdiri dari 18 digit angka.");
+  if (!status) throw new Error("Status kepegawaian wajib dipilih.");
+
+  const result = await sql.transaction([
+    sql`SELECT id FROM data_pegawai WHERE regexp_replace(nip, '[^0-9]', '', 'g') = ${nip} AND id <> ${id} LIMIT 1`,
+    sql`SELECT id, nama_jabatan FROM peta_jabatan WHERE id = ${jabatanId}`,
+    sql`SELECT id, nama_bidang FROM bidang_unit_kerja WHERE id = ${bidangId}`,
+    sql`SELECT id, status_kepegawaian, pangkat_golongan FROM pangkat_golongan WHERE id = ${pangkatId}`,
+    sql`SELECT id FROM data_pegawai WHERE id = ${id}`,
+  ]);
+
+  if (result[0].length) throw new Error("NIP tersebut sudah digunakan pegawai lain.");
+  if (!result[4].length) throw new Error("Pegawai tidak ditemukan.");
+  const jabatan = result[1][0];
+  const bidang = result[2][0];
+  const pangkat = result[3][0];
+  if (!jabatan || !bidang || !pangkat) throw new Error("Master data yang dipilih tidak ditemukan.");
+  if (String(pangkat.status_kepegawaian).trim().toLowerCase() !== status.toLowerCase()) {
+    throw new Error("Status kepegawaian tidak sesuai dengan pangkat/golongan yang dipilih.");
+  }
 
   await sql`
-    UPDATE data_pegawai
-    SET
-      nama = ${formData.get("nama")},
-      nip = ${nipBersih},
-      tempat_lahir = ${formData.get("tempat_lahir")},
-      tanggal_lahir = ${parseDate(formData.get("tanggal_lahir"))},
-      bidang = ${formData.get("bidang")},
-      pangkat_golongan = ${formData.get("pangkat_golongan")},
-      tmt_pangkat_terakhir = ${parseDate(formData.get("tmt_pangkat_terakhir"))},
-      jabatan = ${formData.get("jabatan")},
-      tmt_jabatan_terakhir = ${parseDate(formData.get("tmt_jabatan_terakhir"))},
-      status_kepegawaian = ${formData.get("status_kepegawaian")},
-      sisa_cuti_tahun_lalu = ${parseNumber(formData.get("sisa_cuti_tahun_lalu"))},
-      cuti_tahun_ini = ${parseNumber(formData.get("cuti_tahun_ini"))}
+    UPDATE data_pegawai SET
+      nama = ${nama}, nip = ${nip}, tempat_lahir = ${tempatLahir}, tanggal_lahir = ${tanggalLahir},
+      bidang = ${bidang.nama_bidang},
+      pangkat_golongan = ${pangkat.pangkat_golongan}, tmt_pangkat_terakhir = ${tmtPangkat},
+      jabatan = ${jabatan.nama_jabatan}, tmt_jabatan_terakhir = ${tmtJabatan}, status_kepegawaian = ${status},
+      sisa_cuti_tahun_lalu = ${sisaLalu}, cuti_tahun_ini = ${cutiKini},
+      jabatan_id = ${jabatanId}, pangkat_golongan_id = ${pangkatId}, bidang_unit_kerja_id = ${bidangId}
     WHERE id = ${id}
   `;
 
-  revalidatePath("/admin");
-  revalidatePath("/admin/data-pegawai");
-  revalidatePath("/admin/manajemen-cuti");
-  revalidatePath(`/admin/data-pegawai/${id}`);
+  revalidatePegawai(id);
+  return { success: true, message: "Data pegawai berhasil diperbarui." };
 }
 
-// ==========================================
-// C. HAPUS PEGAWAI
-// ==========================================
-
 export async function hapusPegawai(id: number) {
-  await sql`
-    DELETE FROM data_pegawai
-    WHERE id = ${id}
-  `;
+  await requireAdmin();
+  if (!Number.isInteger(id) || id <= 0) return { success: false, message: "ID pegawai tidak valid." };
 
-  revalidatePath("/admin");
-  revalidatePath("/admin/data-pegawai");
-  revalidatePath("/admin/manajemen-cuti");
+  try {
+    const result = await sql.transaction([
+      sql`SELECT id, nama FROM data_pegawai WHERE id = ${id} FOR UPDATE`,
+      sql`DELETE FROM leave_records WHERE pegawai_id = ${id}`,
+      sql`DELETE FROM data_pegawai WHERE id = ${id}`
+    ]);
+    if (!result[0].length) return { success: false, message: "Pegawai tidak ditemukan." };
+    revalidatePegawai();
+    return { success: true, message: "Data pegawai berhasil dihapus." };
+  } catch (error: any) {
+    console.error("Gagal menghapus pegawai:", error);
+    return { success: false, message: error?.code === "23503" ? "Pegawai masih dipakai oleh data lain dan tidak dapat dihapus." : "Gagal menghapus data pegawai." };
+  }
 }
 
 // ==========================================

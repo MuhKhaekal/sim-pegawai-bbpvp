@@ -12,15 +12,43 @@ export type Pegawai = {
   nip: string;
   tempat_lahir: string | null;
   tanggal_lahir: string | null;
+
   pangkat_golongan: string;
+  pangkat_golongan_id: number | null;
+
   tmt_pangkat_terakhir: string | null;
+
   jabatan: string;
+  jabatan_id: number | null;
+
   tmt_jabatan_terakhir: string | null;
+
   bidang: string;
+  bidang_unit_kerja_id: number | null;
+
   status_kepegawaian: string;
+
   sisa_cuti_tahun_lalu: number;
   cuti_tahun_ini: number;
 };
+
+type MasterOption = {
+  id: number;
+  nama: string;
+};
+
+type PangkatOption = {
+  id: number;
+  status_kepegawaian: string;
+  pangkat_golongan: string;
+};
+
+interface FormEditPegawaiProps {
+  pegawai: Pegawai;
+  jabatanList: MasterOption[];
+  bidangUnitList: MasterOption[];
+  pangkatList: PangkatOption[];
+}
 
 const SelectArrow = () => (
   <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none text-gray-500">
@@ -50,7 +78,7 @@ const formatNipAwal = (nipAsli: string) => {
   return res;
 };
 
-export default function FormEditPegawai({ pegawai }: { pegawai: Pegawai }) {
+export default function FormEditPegawai({ pegawai, jabatanList, bidangUnitList, pangkatList }: FormEditPegawaiProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -77,9 +105,15 @@ export default function FormEditPegawai({ pegawai }: { pegawai: Pegawai }) {
 
   const onSubmit = async (formData: FormData) => {
     setIsSubmitting(true);
-    await updatePegawai(pegawai.id, formData);
-    setIsSubmitting(false);
-    setShowModal(true);
+    try {
+      const result = await updatePegawai(pegawai.id, formData);
+      if (!result?.success) throw new Error(result?.message || "Gagal memperbarui data.");
+      setShowModal(true);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Gagal memperbarui data pegawai.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const inputClass = "w-full bg-gray-50 border-gray-200 text-gray-800 rounded-xl border-2 p-3.5 focus:bg-white focus:border-[#15406A] focus:ring-4 focus:ring-[#15406A]/10 transition-all duration-300 outline-none font-medium";
@@ -142,45 +176,18 @@ export default function FormEditPegawai({ pegawai }: { pegawai: Pegawai }) {
 
               <div className="transform transition-all duration-300 focus-within:-translate-y-1">
                 <label className={labelClass}>Pangkat / Golongan</label>
+
                 <div className={selectWrapperClass}>
-                  <select name="pangkat_golongan" defaultValue={pegawai.pangkat_golongan} className={selectClass} required>
-                    <option value="-">-</option>
-                    <optgroup label="Golongan I (Juru)">
-                      <option value="I/a: Juru Muda">I/a: Juru Muda</option>
-                      <option value="I/b: Juru Muda Tingkat I">I/b: Juru Muda Tingkat I</option>
-                      <option value="I/c: Juru">I/c: Juru</option>
-                      <option value="I/d: Juru Tingkat I">I/d: Juru Tingkat I</option>
-                    </optgroup>
-                    <optgroup label="Golongan II (Pengatur)">
-                      <option value="II/a: Pengatur Muda">II/a: Pengatur Muda</option>
-                      <option value="II/b: Pengatur Muda Tingkat I">II/b: Pengatur Muda Tingkat I</option>
-                      <option value="II/c: Pengatur">II/c: Pengatur</option>
-                      <option value="II/d: Pengatur Tingkat I">II/d: Pengatur Tingkat I</option>
-                    </optgroup>
-                    <optgroup label="Golongan III (Penata)">
-                      <option value="III/a: Penata Muda">III/a: Penata Muda</option>
-                      <option value="III/b: Penata Muda Tingkat I">III/b: Penata Muda Tingkat I</option>
-                      <option value="III/c: Penata">III/c: Penata</option>
-                      <option value="III/d: Penata Tingkat I">III/d: Penata Tingkat I</option>
-                    </optgroup>
-                    <optgroup label="Golongan IV (Pembina)">
-                      <option value="IV/a: Pembina">IV/a: Pembina</option>
-                      <option value="IV/b: Pembina Tingkat I">IV/b: Pembina Tingkat I</option>
-                      <option value="IV/c: Pembina Utama Muda">IV/c: Pembina Utama Muda</option>
-                      <option value="IV/d: Pembina Utama Madya">IV/d: Pembina Utama Madya</option>
-                      <option value="IV/e: Pembina Utama">IV/e: Pembina Utama</option>
-                    </optgroup>
-                    <optgroup label="Golongan PPPK">
-                      <option value="I">I</option>
-                      <option value="IV">IV</option>
-                      <option value="V">V</option>
-                      <option value="VI">VI</option>
-                      <option value="VII">VII</option>
-                      <option value="IX">IX</option>
-                      <option value="X">X</option>
-                      <option value="XI">XI</option>
-                    </optgroup>
+                  <select name="pangkat_golongan_id" defaultValue={pegawai.pangkat_golongan_id?.toString() ?? ""} className={selectClass} required>
+                    <option value="">Pilih Pangkat / Golongan</option>
+
+                    {pangkatList.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.status_kepegawaian} — {item.pangkat_golongan}
+                      </option>
+                    ))}
                   </select>
+
                   <SelectArrow />
                 </div>
               </div>
@@ -208,50 +215,18 @@ export default function FormEditPegawai({ pegawai }: { pegawai: Pegawai }) {
             <div className="space-y-6">
               <div className="transform transition-all duration-300 focus-within:-translate-y-1">
                 <label className={labelClass}>Jabatan</label>
+
                 <div className={selectWrapperClass}>
-                  <select name="jabatan" defaultValue={pegawai.jabatan} className={selectClass} required>
-                    <option value="-">-</option>
-                    <optgroup label="Struktural / Pimpinan">
-                      <option value="Kepala BBPVP Makassar">Kepala BBPVP Makassar</option>
-                      <option value="Kabag Umum">Kabag Umum</option>
-                    </optgroup>
-                    <optgroup label="Fungsional Instruktur">
-                      <option value="Instruktur Ahli Utama">Instruktur Ahli Utama</option>
-                      <option value="Instruktur Ahli Madya">Instruktur Ahli Madya</option>
-                      <option value="Instruktur Ahli Muda">Instruktur Ahli Muda</option>
-                      <option value="Instruktur Ahli Pertama">Instruktur Ahli Pertama</option>
-                      <option value="Instruktur Mahir">Instruktur Mahir</option>
-                      <option value="Instruktur Penyelia">Instruktur Penyelia</option>
-                    </optgroup>
-                    <optgroup label="Fungsional Khusus / Tertentu">
-                      <option value="Analis Sumber Daya Manusia Aparatur Ahli Muda">Analis SDM Aparatur Ahli Muda</option>
-                      <option value="Analis Sumber Daya Manusia Aparatur Ahli Pertama">Analis SDM Aparatur Ahli Pertama</option>
-                      <option value="Pengantar Kerja Ahli Madya">Pengantar Kerja Ahli Madya</option>
-                      <option value="Pengantar Kerja Ahli Muda">Pengantar Kerja Ahli Muda</option>
-                      <option value="Pengantar Kerja Ahli Pertama">Pengantar Kerja Ahli Pertama</option>
-                      <option value="Perencana Ahli Madya">Perencana Ahli Madya</option>
-                      <option value="Perencana Ahli Pertama">Perencana Ahli Pertama</option>
-                      <option value="Arsiparis Ahli Muda">Arsiparis Ahli Muda</option>
-                      <option value="Arsiparis Ahli Pertama">Arsiparis Ahli Pertama</option>
-                      <option value="Pranata Komputer Ahli Pertama">Pranata Komputer Ahli Pertama</option>
-                      <option value="Pranata Komputer Terampil">Pranata Komputer Terampil</option>
-                      <option value="Analis Pengelolaan Keuangan APBN Ahli Pertama">Analis Pengelolaan Keu. APBN Ahli Pertama</option>
-                      <option value="Pranata Keuangan APBN Terampil">Pranata Keuangan APBN Terampil</option>
-                      <option value="Penelaah Teknis Kebijakan">Penelaah Teknis Kebijakan</option>
-                      <option value="Konselor SDM">Konselor SDM</option>
-                    </optgroup>
-                    <optgroup label="Pelaksana / Umum / Teknis">
-                      <option value="Penata Layanan Operasional">Penata Layanan Operasional</option>
-                      <option value="Operator Layanan Operasional">Operator Layanan Operasional</option>
-                      <option value="Pengelola Layanan Operasional">Pengelola Layanan Operasional</option>
-                      <option value="Pengelola Umum Operasional">Pengelola Umum Operasional</option>
-                      <option value="Pengadministrasi Perkantoran">Pengadministrasi Perkantoran</option>
-                      <option value="Penata Laksana Barang Terampil">Penata Laksana Barang Terampil</option>
-                      <option value="Penata Kelola Sistem dan Teknologi Informasi">Penata Kelola Sistem & TI</option>
-                      <option value="Teknisi Sarana dan Prasarana">Teknisi Sarana dan Prasarana</option>
-                      <option value="Pramubakti">Pramubakti</option>
-                    </optgroup>
+                  <select name="jabatan_id" defaultValue={pegawai.jabatan_id?.toString() ?? ""} className={selectClass} required>
+                    <option value="">Pilih Jabatan</option>
+
+                    {jabatanList.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.nama}
+                      </option>
+                    ))}
                   </select>
+
                   <SelectArrow />
                 </div>
               </div>
@@ -276,49 +251,21 @@ export default function FormEditPegawai({ pegawai }: { pegawai: Pegawai }) {
 
               <div className="transform transition-all duration-300 focus-within:-translate-y-1">
                 <label className={labelClass}>Bidang / Unit Kerja</label>
+
                 <div className={selectWrapperClass}>
-                  <select name="bidang" defaultValue={pegawai.bidang} className={selectClass} required>
-                    <option value="-">-</option>
-                    <option value="Struktural">Struktural</option>
-                    <option value="Instruktur Non Kejuruan">Instruktur Non Kejuruan</option>
-                    <option value="Kej. Manufaktur">Kej. Manufaktur</option>
-                    <option value="Kej. Otomotif">Kej. Otomotif</option>
-                    <option value="Kej. Elektronika">Kej. Elektronika</option>
-                    <option value="Kej. Listrik">Kej. Listrik</option>
-                    <option value="Kej. Teknik Pendingin">Kej. Teknik Pendingin</option>
-                    <option value="Kej. Garmen Apparel">Kej. Garmen Apparel</option>
-                    <option value="Kej. Adminisitrasi Bisnis dan Manajemen">Kej. Adminisitrasi Bisnis dan Manajemen</option>
-                    <option value="Kej. Teknik Las">Kej. Teknik Las</option>
-                    <option value="Kej. Teknologi Informasi dan Komunikasi">Kej. Teknologi Informasi dan Komunikasi</option>
-                    <option value="Kej. Tata Kecantikan">Kej. Tata Kecantikan</option>
-                    <option value="Kej. Bangunan">Kej. Bangunan</option>
-                    <option value="Kej. Pariwisata">Kej. Pariwisata</option>
-                    <optgroup label="Bagian Umum">
-                      <option value="Bagian Umum SDMA">-- Bagian Umum SDMA</option>
-                      <option value="Bagian Umum Keuangan">-- Bagian Umum Keuangan</option>
-                      <option value="Bagian Umum Pengadaaan">-- Bagian Umum Pengadaaan</option>
-                      <option value="Bagian Umum Gudang">-- Bagian Umum Gudang</option>
-                    </optgroup>
-                    <option value="Bidang Pemberdayaan">Bidang Pemberdayaan</option>
-                    <option value="Bidang Penyelenggara">Bidang Penyelenggara</option>
-                    <option value="Bidang Intala dan Uji Coba Program">Bidang Intala dan Uji Coba Program</option>
-                    <option value="LSP">LSP</option>
+                  <select name="bidang_unit_kerja_id" defaultValue={pegawai.bidang_unit_kerja_id?.toString() ?? ""} className={selectClass} required>
+                    <option value="">Pilih Bidang / Unit Kerja</option>
 
-                    <optgroup label="Satuan Pelayanan (SATPEL)">
-                      <option value="SATPEL">-- SATPEL (Belum Spesifik)</option>
-                      <option value="SATPEL Mamuju">-- SATPEL Mamuju</option>
-                      <option value="SATPEL Majene">-- SATPEL Majene</option>
-                      <option value="SATPEL Palu">-- SATPEL Palu</option>
-                    </optgroup>
-
-                    <option value="Security">Security</option>
-                    <option value="Cleaning Services">Cleaning Services</option>
-                    <option value="Teknisi">Teknisi</option>
-                    <option value="Driver">Driver</option>
+                    {bidangUnitList.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.nama}
+                      </option>
+                    ))}
                   </select>
+
                   <SelectArrow />
                 </div>
-              </div>
+              </div>    
 
               <div className="transform transition-all duration-300 focus-within:-translate-y-1">
                 <label className={labelClass}>Status Kepegawaian</label>

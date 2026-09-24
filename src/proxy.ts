@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
-const SECRET_KEY = new TextEncoder().encode(process.env.JWT_SECRET || 'kunci_cadangan');
+const JWT_SECRET = process.env.JWT_SECRET;
+const SECRET_KEY = JWT_SECRET ? new TextEncoder().encode(JWT_SECRET) : null;
 
 // Fungsi sekarang bernama proxy
 export async function proxy(request: NextRequest) {
@@ -11,7 +12,7 @@ export async function proxy(request: NextRequest) {
   let isTokenValid = false;
 
   // 1. Cek dulu apakah tiketnya (token) valid jika ada
-  if (token) {
+  if (token && SECRET_KEY) {
     try {
       await jwtVerify(token, SECRET_KEY);
       isTokenValid = true; // Tiket asli dan belum kadaluwarsa

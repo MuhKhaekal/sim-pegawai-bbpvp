@@ -9,22 +9,28 @@ export async function GET() {
 
     const rows = await sql`
       SELECT
-        id,
-        nama,
-        nip,
-        bidang,
-        pangkat_golongan,
-        tmt_pangkat_terakhir,
-        jabatan,
-        tmt_jabatan_terakhir,
-        status_kepegawaian,
-        created_at,
-        tempat_lahir,
-        tanggal_lahir,
-        sisa_cuti_tahun_lalu,
+        p.id,
+        p.nama,
+        p.nip,
+        COALESCE(b.nama_bidang, p.bidang) AS bidang,
+        COALESCE(pg.pangkat_golongan, p.pangkat_golongan) AS pangkat_golongan,
+        p.tmt_pangkat_terakhir,
+        COALESCE(j.nama_jabatan, p.jabatan) AS jabatan,
+        p.tmt_jabatan_terakhir,
+        p.status_kepegawaian,
+        p.jabatan_id,
+        p.pangkat_golongan_id,
+        p.bidang_unit_kerja_id,
+        p.created_at,
+        p.tempat_lahir,
+        p.tanggal_lahir,
+        p.sisa_cuti_tahun_lalu,
         cuti_tahun_ini
-      FROM data_pegawai
-      ORDER BY created_at DESC
+      FROM data_pegawai p
+      LEFT JOIN peta_jabatan j ON j.id = p.jabatan_id
+      LEFT JOIN pangkat_golongan pg ON pg.id = p.pangkat_golongan_id
+      LEFT JOIN bidang_unit_kerja b ON b.id = p.bidang_unit_kerja_id
+      ORDER BY p.created_at DESC
     `;
 
     const leaveRows = await sql`
@@ -57,6 +63,9 @@ export async function GET() {
 
     const data = rows.map((pegawai) => ({
       id: Number(pegawai.id),
+      jabatan_id: pegawai.jabatan_id == null ? null : Number(pegawai.jabatan_id),
+      pangkat_golongan_id: pegawai.pangkat_golongan_id == null ? null : Number(pegawai.pangkat_golongan_id),
+      bidang_unit_kerja_id: pegawai.bidang_unit_kerja_id == null ? null : Number(pegawai.bidang_unit_kerja_id),
       nama: String(pegawai.nama),
       nip: String(pegawai.nip),
       bidang: String(pegawai.bidang),

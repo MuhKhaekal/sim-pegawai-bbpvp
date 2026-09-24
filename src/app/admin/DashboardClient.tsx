@@ -3,16 +3,15 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import type { Pegawai, LeaveRecord } from "./types";
+import type { Pegawai, PetaJabatan } from "./types";
 
 type Props = {
   dataPegawai: Pegawai[];
+  dataPetaJabatan: PetaJabatan[];
 };
 
 const SATPEL_DAERAH = ["SATPEL Mamuju", "SATPEL Majene", "SATPEL Palu"];
-
 const BULAN = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
-
 const JENJANG = ["Ahli Utama", "Ahli Madya", "Ahli Muda", "Ahli Pertama", "Mahir", "Terampil"];
 
 const KATEGORI = [
@@ -38,257 +37,101 @@ const PELAKSANA = [
   "Pengelola Umum Operasional",
 ];
 
-export default function DashboardClient({ dataPegawai }: Props) {
+// --- STRICT TYPES UNTUK MENGHILANGKAN `any` ---
+type FungsionalStat = {
+  aktual: number;
+  ideal: number;
+  kelas: number | null;
+};
+
+type MatrixJenjangRow = {
+  TotalAktual: number;
+  TotalIdeal: number;
+  kategori: Record<string, FungsionalStat>;
+};
+
+export default function DashboardClient({ dataPegawai, dataPetaJabatan }: Props) {
   const router = useRouter();
   const currentYear = new Date().getFullYear();
 
   const [statusFilter, setStatusFilter] = useState("Semua");
   const [unitFilter, setUnitFilter] = useState("Semua");
   const [search, setSearch] = useState("");
-  const [activeSection, setActiveSection] = useState("overview");
   const [showAllLeave, setShowAllLeave] = useState(false);
   const [showAllRetirement, setShowAllRetirement] = useState(false);
-  const [expandedMatrix, setExpandedMatrix] = useState(false);
   const [filterBidang, setFilterBidang] = useState("");
   const [filterJabatan, setFilterJabatan] = useState("");
   const [filterPangkat, setFilterPangkat] = useState("");
 
   const openDetail = (filter: string, value: string, category?: string) => {
     const params = new URLSearchParams();
-
-    // Filter drill-down yang diklik
     params.set("filter", filter);
     params.set("value", value);
-
-    if (category) {
-      params.set("category", category);
-    }
-
-    // =====================================================
-    // WARISKAN FILTER DARI DASHBOARD UTAMA
-    // =====================================================
-
-    if (statusFilter !== "Semua") {
-      params.set("baseStatus", statusFilter);
-    }
-
-    if (unitFilter !== "Semua") {
-      params.set("baseUnit", unitFilter);
-    }
-
-    if (search.trim()) {
-      params.set("baseSearch", search.trim());
-    }
+    if (category) params.set("category", category);
+    if (statusFilter !== "Semua") params.set("baseStatus", statusFilter);
+    if (unitFilter !== "Semua") params.set("baseUnit", unitFilter);
+    if (search.trim()) params.set("baseSearch", search.trim());
 
     router.push(`dashboard-detail?${params.toString()}`);
   };
+
   const openDataPegawai = (filter: string) => {
     const params = new URLSearchParams();
-
-    // Filter drill-down yang diklik
     params.set("filter", filter);
-
     router.push(`admin/data-pegawai`);
   };
-  /*
-  |--------------------------------------------------------------------------
-  | FILTER DATA
-  |--------------------------------------------------------------------------
-  */
 
+  /* |--- FILTER DATA ---| */
   const filteredData = useMemo(() => {
     return dataPegawai.filter((p) => {
       const statusMatch = statusFilter === "Semua" || p.status_kepegawaian === statusFilter;
-
       const isSatpel = SATPEL_DAERAH.includes(p.bidang);
-
       const unitMatch = unitFilter === "Semua" || (unitFilter === "Satpel" && isSatpel) || (unitFilter === "Pusat" && !isSatpel);
-
       const searchMatch = !search || p.nama?.toLowerCase().includes(search.toLowerCase()) || p.nip?.includes(search) || p.jabatan?.toLowerCase().includes(search.toLowerCase()) || p.bidang?.toLowerCase().includes(search.toLowerCase());
-
       return statusMatch && unitMatch && searchMatch;
     });
   }, [dataPegawai, statusFilter, unitFilter, search]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | STATISTIK UTAMA
-  |--------------------------------------------------------------------------
-  */
-
+  /* |--- STATISTIK UTAMA ---| */
   const totalPegawai = filteredData.length;
-
   const totalPNS = filteredData.filter((p) => p.status_kepegawaian === "PNS").length;
-
   const totalPPPK = filteredData.filter((p) => p.status_kepegawaian === "PPPK").length;
-
   const totalNonASN = filteredData.filter((p) => p.status_kepegawaian === "Non ASN").length;
-
   const totalASN = totalPNS + totalPPPK;
-
   const persen = (value: number) => (totalPegawai > 0 ? Math.round((value / totalPegawai) * 100) : 0);
 
-  /*
-  |--------------------------------------------------------------------------
-  | UNIT KERJA
-  |--------------------------------------------------------------------------
-  */
-
   const totalPusat = filteredData.filter((p) => !SATPEL_DAERAH.includes(p.bidang)).length;
-
   const totalSatpel = filteredData.filter((p) => SATPEL_DAERAH.includes(p.bidang)).length;
-
   const satpelStats = SATPEL_DAERAH.map((nama) => ({
     nama,
     total: filteredData.filter((p) => p.bidang === nama).length,
   }));
 
-  /*
-  |--------------------------------------------------------------------------
-  | GENDER
-  |--------------------------------------------------------------------------
-  */
-
-  const gender = {
-    laki: 0,
-    perempuan: 0,
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | USIA & GENERASI
-  |--------------------------------------------------------------------------
-  */
-
-  const usia = {
-    "Di bawah 30": 0,
-    "30–40": 0,
-    "41–50": 0,
-    "Di atas 50": 0,
-  };
-
-  const generasi = {
-    "Baby Boomer": 0,
-    "Gen X": 0,
-    Milenial: 0,
-    "Gen Z": 0,
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | PENSIUN
-  |--------------------------------------------------------------------------
-  */
-
-  const pensiun = {
-    "Tahun Ini": 0,
-    "1–2 Tahun": 0,
-    "3–5 Tahun": 0,
-    "> 5 Tahun": 0,
-  };
-
-  const pensiunWatchlist: {
-    id: number;
-    nama: string;
-    jabatan: string;
-    sisaTahun: number;
-  }[] = [];
-
-  /*
-  |--------------------------------------------------------------------------
-  | CUTI
-  |--------------------------------------------------------------------------
-  */
-
-  const cuti = {
-    kritis: 0,
-    menipis: 0,
-    aman: 0,
-    berlebih: 0,
-  };
-
+  /* |--- DEMOGRAFI & LAINNYA ---| */
+  const gender = { laki: 0, perempuan: 0 };
+  const usia = { "Di bawah 30": 0, "30–40": 0, "41–50": 0, "Di atas 50": 0 };
+  const generasi = { "Baby Boomer": 0, "Gen X": 0, Milenial: 0, "Gen Z": 0 };
+  const pensiun = { "Tahun Ini": 0, "1–2 Tahun": 0, "3–5 Tahun": 0, "> 5 Tahun": 0 };
+  const pensiunWatchlist: { id: number; nama: string; jabatan: string; sisaTahun: number }[] = [];
+  const cuti = { kritis: 0, menipis: 0, aman: 0, berlebih: 0 };
   let totalSisaCuti = 0;
-
-  const cutiWatchlist: {
-    id: number;
-    nama: string;
-    jabatan: string;
-    total: number;
-  }[] = [];
-
-  /*
-  |--------------------------------------------------------------------------
-  | MASA KERJA
-  |--------------------------------------------------------------------------
-  */
-
-  const masaKerja = {
-    baru: 0,
-    berkembang: 0,
-    senior: 0,
-    veteran: 0,
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | GOLONGAN
-  |--------------------------------------------------------------------------
-  */
-
-  const golonganPNS = {
-    "Gol I": 0,
-    "Gol II": 0,
-    "Gol III": 0,
-    "Gol IV": 0,
-  };
-  const golonganPPPK = {
-    I: 0,
-    IV: 0,
-    V: 0,
-    VI: 0,
-    VII: 0,
-    IX: 0,
-    X: 0,
-    XI: 0,
-  };
-
-  /*
-  |--------------------------------------------------------------------------
-  | PENDIDIKAN
-  |--------------------------------------------------------------------------
-  */
-
-  const pendidikan = {
-    S3: 0,
-    S2: 0,
-    "S1 / D4": 0,
-    D3: 0,
-    "D1 / SMA / Umum": 0,
-  };
+  const cutiWatchlist: { id: number; nama: string; jabatan: string; total: number }[] = [];
+  const masaKerja = { baru: 0, berkembang: 0, senior: 0, veteran: 0 };
+  const golonganPNS = { "Gol I": 0, "Gol II": 0, "Gol III": 0, "Gol IV": 0 };
+  const golonganPPPK = { I: 0, IV: 0, V: 0, VI: 0, VII: 0, IX: 0, X: 0, XI: 0 };
+  const pendidikan = { S3: 0, S2: 0, "S1 / D4": 0, D3: 0, "D1 / SMA / Umum": 0 };
 
   filteredData.forEach((p) => {
-    /*
-     * GENDER + MASA KERJA
-     */
-
     const nip = p.nip ? String(p.nip).replace(/\D/g, "") : "";
 
     if ((p.status_kepegawaian === "PNS" || p.status_kepegawaian === "PPPK") && nip.length >= 15) {
       const genderCode = nip.charAt(14);
-
-      if (genderCode === "1") {
-        gender.laki++;
-      }
-
-      if (genderCode === "2") {
-        gender.perempuan++;
-      }
+      if (genderCode === "1") gender.laki++;
+      if (genderCode === "2") gender.perempuan++;
 
       const tahunMasuk = Number(nip.substring(8, 12));
-
       if (tahunMasuk > 1900) {
         const mk = currentYear - tahunMasuk;
-
         if (mk < 5) masaKerja.baru++;
         else if (mk <= 10) masaKerja.berkembang++;
         else if (mk <= 20) masaKerja.senior++;
@@ -296,13 +139,8 @@ export default function DashboardClient({ dataPegawai }: Props) {
       }
     }
 
-    /*
-     * USIA
-     */
-
     if (p.tanggal_lahir) {
       const tahunLahir = new Date(p.tanggal_lahir).getFullYear();
-
       const umur = currentYear - tahunLahir;
 
       if (umur < 30) usia["Di bawah 30"]++;
@@ -310,342 +148,255 @@ export default function DashboardClient({ dataPegawai }: Props) {
       else if (umur <= 50) usia["41–50"]++;
       else usia["Di atas 50"]++;
 
-      /*
-       * GENERASI
-       */
-
-      if (tahunLahir <= 1964) {
-        generasi["Baby Boomer"]++;
-      } else if (tahunLahir <= 1980) {
-        generasi["Gen X"]++;
-      } else if (tahunLahir <= 1996) {
-        generasi["Milenial"]++;
-      } else {
-        generasi["Gen Z"]++;
-      }
-
-      /*
-       * PENSIUN
-       */
+      if (tahunLahir <= 1964) generasi["Baby Boomer"]++;
+      else if (tahunLahir <= 1980) generasi["Gen X"]++;
+      else if (tahunLahir <= 1996) generasi["Milenial"]++;
+      else generasi["Gen Z"]++;
 
       if (p.status_kepegawaian !== "Non ASN") {
         let batasUsia = 58;
-
-        if (p.jabatan?.includes("Utama")) {
-          batasUsia = 65;
-        } else if (p.jabatan?.includes("Madya") || p.jabatan === "Kepala BBPVP Makassar") {
-          batasUsia = 60;
-        }
+        if (p.jabatan?.includes("Utama")) batasUsia = 65;
+        else if (p.jabatan?.includes("Madya") || p.jabatan === "Kepala BBPVP Makassar") batasUsia = 60;
 
         const tahunPensiun = tahunLahir + batasUsia;
-
         const sisaTahun = tahunPensiun - currentYear;
 
-        if (sisaTahun <= 0) {
-          pensiun["Tahun Ini"]++;
-        } else if (sisaTahun <= 2) {
-          pensiun["1–2 Tahun"]++;
-        } else if (sisaTahun <= 5) {
-          pensiun["3–5 Tahun"]++;
-        } else {
-          pensiun["> 5 Tahun"]++;
-        }
+        if (sisaTahun <= 0) pensiun["Tahun Ini"]++;
+        else if (sisaTahun <= 2) pensiun["1–2 Tahun"]++;
+        else if (sisaTahun <= 5) pensiun["3–5 Tahun"]++;
+        else pensiun["> 5 Tahun"]++;
 
         if (sisaTahun >= 0 && sisaTahun <= 2) {
-          pensiunWatchlist.push({
-            id: p.id,
-            nama: p.nama,
-            jabatan: p.jabatan,
-            sisaTahun,
-          });
+          pensiunWatchlist.push({ id: p.id, nama: p.nama, jabatan: p.jabatan, sisaTahun });
         }
       }
     }
 
-    /*
-     * GOLONGAN
-     */
-
     const pangkat = p.pangkat_golongan || "ts";
-
     if (p.status_kepegawaian === "PNS") {
-      if (pangkat.startsWith("I/")) {
-        golonganPNS["Gol I"]++;
-      } else if (pangkat.startsWith("II/")) {
-        golonganPNS["Gol II"]++;
-      } else if (pangkat.startsWith("III/")) {
-        golonganPNS["Gol III"]++;
-      } else if (pangkat.startsWith("IV/")) {
-        golonganPNS["Gol IV"]++;
-      }
+      if (pangkat.startsWith("I/")) golonganPNS["Gol I"]++;
+      else if (pangkat.startsWith("II/")) golonganPNS["Gol II"]++;
+      else if (pangkat.startsWith("III/")) golonganPNS["Gol III"]++;
+      else if (pangkat.startsWith("IV/")) golonganPNS["Gol IV"]++;
     }
-    // Pastikan nilai pangkat disamakan formatnya (misal: huruf kapital semua)
-    const pangkatBersih = pangkat.trim().toUpperCase();
 
     if (p.status_kepegawaian === "PPPK") {
       switch (pangkat) {
         case "I":
           golonganPPPK.I++;
           break;
-
         case "IV":
           golonganPPPK.IV++;
           break;
-
         case "V":
           golonganPPPK.V++;
           break;
-
         case "VI":
           golonganPPPK.VI++;
           break;
-
         case "VII":
           golonganPPPK.VII++;
           break;
-
         case "IX":
           golonganPPPK.IX++;
           break;
-
         case "X":
           golonganPPPK.X++;
           break;
-
         case "XI":
           golonganPPPK.XI++;
           break;
       }
     }
-    /*
-     * PENDIDIKAN
-     */
 
     const nama = (p.nama || "").toUpperCase();
-
-    if (nama.includes("DR. ") || nama.startsWith("DR.") || nama.includes("PH.D")) {
-      pendidikan.S3++;
-    } else if (nama.includes(", M.") || nama.includes(",M.")) {
-      pendidikan.S2++;
-    } else if (nama.includes(", S.") || nama.includes(",S.") || nama.includes("S.ST") || nama.includes("S.TR")) {
-      pendidikan["S1 / D4"]++;
-    } else if (nama.includes("A.MD") || nama.includes("A.MA")) {
-      pendidikan["D3"]++;
-    } else {
-      pendidikan["D1 / SMA / Umum"]++;
-    }
-
-    /*
-     * CUTI
-     */
+    if (nama.includes("DR. ") || nama.startsWith("DR.") || nama.includes("PH.D")) pendidikan.S3++;
+    else if (nama.includes(", M.") || nama.includes(",M.")) pendidikan.S2++;
+    else if (nama.includes(", S.") || nama.includes(",S.") || nama.includes("S.ST") || nama.includes("S.TR")) pendidikan["S1 / D4"]++;
+    else if (nama.includes("A.MD") || nama.includes("A.MA")) pendidikan["D3"]++;
+    else pendidikan["D1 / SMA / Umum"]++;
 
     const sisaLalu = Number(p.sisa_cuti_tahun_lalu) || 0;
-
     const sisaTahunIni = Number(p.cuti_tahun_ini) || 0;
-
     const total = sisaLalu + sisaTahunIni;
-
     totalSisaCuti += total;
 
-    if (total <= 3) {
-      cuti.kritis++;
-    } else if (total <= 6) {
-      cuti.menipis++;
-    } else if (total <= 12) {
-      cuti.aman++;
-    } else {
+    if (total <= 3) cuti.kritis++;
+    else if (total <= 6) cuti.menipis++;
+    else if (total <= 12) cuti.aman++;
+    else {
       cuti.berlebih++;
-
-      cutiWatchlist.push({
-        id: p.id,
-        nama: p.nama,
-        jabatan: p.jabatan,
-        total,
-      });
+      cutiWatchlist.push({ id: p.id, nama: p.nama, jabatan: p.jabatan, total });
     }
   });
 
   pensiunWatchlist.sort((a, b) => a.sisaTahun - b.sisaTahun);
-
   cutiWatchlist.sort((a, b) => b.total - a.total);
 
   const rataCuti = totalPegawai > 0 ? Math.round(totalSisaCuti / totalPegawai) : 0;
-
-  /*
-  |--------------------------------------------------------------------------
-  | RIWAYAT CUTI BULANAN
-  |--------------------------------------------------------------------------
-  */
-
   const monthlyLeave = BULAN.map((_, index) => {
     return filteredData.reduce((total, pegawai) => {
       const records = pegawai.riwayat_cuti || [];
-
       return total + records.filter((r) => r.tahun === currentYear && r.bulan_angka === index + 1).reduce((sum, r) => sum + Number(r.durasi || 0), 0);
     }, 0);
   });
 
   const maxMonthlyLeave = Math.max(...monthlyLeave, 1);
-
-  /*
-  |--------------------------------------------------------------------------
-  | TOTAL CUTI YANG TELAH DIGUNAKAN
-  |--------------------------------------------------------------------------
-  */
-
   const totalCutiTerpakai = filteredData.reduce((total, pegawai) => {
     return total + (pegawai.riwayat_cuti || []).filter((r) => r.tahun === currentYear).reduce((sum, r) => sum + Number(r.durasi || 0), 0);
   }, 0);
 
-  /*
-  |--------------------------------------------------------------------------
-  | HEALTH SCORE
-  |--------------------------------------------------------------------------
-  */
-
   const retirementRisk = pensiun["Tahun Ini"] + pensiun["1–2 Tahun"];
-
   const criticalLeave = cuti.kritis;
 
   let healthScore = 100;
-
   if (totalPegawai > 0) {
     healthScore -= Math.round((retirementRisk / totalPegawai) * 25);
-
     healthScore -= Math.round((criticalLeave / totalPegawai) * 20);
-
     healthScore = Math.max(0, Math.min(100, healthScore));
   }
-
   const healthLabel = healthScore >= 85 ? "Sangat Baik" : healthScore >= 70 ? "Baik" : healthScore >= 50 ? "Perlu Perhatian" : "Kritis";
 
   /*
   |--------------------------------------------------------------------------
-  | MATRIX JABATAN
+  | PETA JABATAN FUNGSIONAL & PELAKSANA (DINAMIS DB)
   |--------------------------------------------------------------------------
   */
 
-  const matrixStats: Record<string, Record<string, number>> = {};
+  const matrixData = useMemo(() => {
+    // 1. Siapkan wadah kosong (akan selalu di-reset jadi 0 setiap data berubah)
+    const mStats: Record<string, MatrixJenjangRow> = {};
+    const mTotals = { kategori: {} as Record<string, { aktual: number; ideal: number }> };
+    let gTotalAktual = 0;
+    let gTotalIdeal = 0;
 
-  JENJANG.forEach((j) => {
-    matrixStats[j] = {};
+    JENJANG.forEach((j) => {
+      mStats[j] = { TotalAktual: 0, TotalIdeal: 0, kategori: {} };
+      KATEGORI.forEach((k) => {
+        mStats[j].kategori[k.key] = { aktual: 0, ideal: 0, kelas: null };
+      });
+    });
 
     KATEGORI.forEach((k) => {
-      matrixStats[j][k.key] = 0;
+      mTotals.kategori[k.key] = { aktual: 0, ideal: 0 };
     });
 
-    matrixStats[j].Total = 0;
-  });
+    const pStats: Record<string, { pusat: number; satpel: number; aktual: number; ideal: number; kelas: number | null }> = {};
+    PELAKSANA.forEach((jabatan) => {
+      pStats[jabatan] = { pusat: 0, satpel: 0, aktual: 0, ideal: 0, kelas: null };
+    });
 
-  const matrixTotals: Record<string, number> = {};
+    // 2. Kalkulasi Data IDEAL
+    dataPetaJabatan.forEach((pj) => {
+      const jabatanRaw = String(pj.nama_jabatan || "").trim();
+      const jabatanLower = jabatanRaw.toLowerCase();
 
-  KATEGORI.forEach((k) => {
-    matrixTotals[k.key] = 0;
-  });
-
-  matrixTotals.Total = 0;
-
-  filteredData.forEach((p) => {
-    if (p.status_kepegawaian === "Non ASN") {
-      return;
-    }
-
-    const jabatan = p.jabatan || "";
-
-    let jenjang: string | null = null;
-
-    for (const j of JENJANG) {
-      if (jabatan.includes(j)) {
-        jenjang = j;
-        break;
+      const matchedPelaksana = PELAKSANA.find((p) => p.toLowerCase() === jabatanLower);
+      if (matchedPelaksana) {
+        // Gunakan Number() untuk memastikan yang dijumlah adalah angka, bukan teks
+        pStats[matchedPelaksana].ideal += Number(pj.kebutuhan_ideal) || 0;
+        if (pj.kelas_jabatan) pStats[matchedPelaksana].kelas = Number(pj.kelas_jabatan);
+        return;
       }
-    }
 
-    if (!jenjang) return;
+      let jenjang: string | null = null;
+      for (const j of JENJANG) {
+        if (jabatanLower.includes(j.toLowerCase())) {
+          jenjang = j;
+          break;
+        }
+      }
+      if (!jenjang) return;
 
-    let kategori: string | null = null;
+      let kategori: string | null = null;
+      if (jabatanLower.includes("instruktur")) kategori = "Instruktur";
+      else if (jabatanLower.includes("sumber daya manusia aparatur") || jabatanLower.includes("analis sdm")) kategori = "SDM";
+      else if (jabatanLower.includes("pengantar kerja")) kategori = "PengantarKerja";
+      else if (jabatanLower.includes("perencana")) kategori = "Perencana";
+      else if (jabatanLower.includes("arsiparis")) kategori = "Arsiparis";
+      else if (jabatanLower.includes("pranata komputer")) kategori = "Prakom";
+      else if (jabatanLower.includes("keuangan apbn") || jabatanLower.includes("analis pengelolaan keuangan")) kategori = "Keuangan";
+      else if (jabatanLower.includes("penata laksana barang")) kategori = "Barang";
 
-    if (jabatan.includes("Instruktur")) kategori = "Instruktur";
-    else if (jabatan.includes("Sumber Daya Manusia Aparatur")) kategori = "SDM";
-    else if (jabatan.includes("Pengantar Kerja")) kategori = "PengantarKerja";
-    else if (jabatan.includes("Perencana")) kategori = "Perencana";
-    else if (jabatan.includes("Arsiparis")) kategori = "Arsiparis";
-    else if (jabatan.includes("Pranata Komputer")) kategori = "Prakom";
-    else if (jabatan.includes("Keuangan APBN")) kategori = "Keuangan";
-    else if (jabatan.includes("Penata Laksana Barang")) kategori = "Barang";
+      if (!kategori) return;
 
-    if (!kategori) return;
-
-    matrixStats[jenjang][kategori]++;
-    matrixStats[jenjang].Total++;
-
-    matrixTotals[kategori]++;
-    matrixTotals.Total++;
-  });
-
-  /*
-  |--------------------------------------------------------------------------
-  | PELAKSANA
-  |--------------------------------------------------------------------------
-  */
-
-  const pelaksanaStats: Record<
-    string,
-    {
-      pusat: number;
-      satpel: number;
-      total: number;
-    }
-  > = {};
-
-  PELAKSANA.forEach((jabatan) => {
-    pelaksanaStats[jabatan] = {
-      pusat: 0,
-      satpel: 0,
-      total: 0,
-    };
-  });
-
-  filteredData.forEach((p) => {
-    const jabatan = String(p.jabatan || "").trim();
-
-    if (!PELAKSANA.includes(jabatan)) {
-      return;
-    }
-
-    if (SATPEL_DAERAH.includes(p.bidang)) {
-      pelaksanaStats[jabatan].satpel++;
-    } else {
-      pelaksanaStats[jabatan].pusat++;
-    }
-
-    pelaksanaStats[jabatan].total++;
-  });
-
-  const filteredPegawai = useMemo(() => {
-    return dataPegawai.filter((pegawai) => {
-      const cocokBidang = !filterBidang || pegawai.bidang === filterBidang;
-
-      const cocokJabatan = !filterJabatan || pegawai.jabatan === filterJabatan;
-
-      const cocokPangkat = !filterPangkat || pegawai.pangkat_golongan === filterPangkat;
-
-      return cocokBidang && cocokJabatan && cocokPangkat;
+      mStats[jenjang].kategori[kategori].ideal += Number(pj.kebutuhan_ideal) || 0;
+      if (pj.kelas_jabatan) {
+        mStats[jenjang].kategori[kategori].kelas = Number(pj.kelas_jabatan);
+      }
     });
-  }, [dataPegawai, filterBidang, filterJabatan, filterPangkat]);
 
-  /*
-  |--------------------------------------------------------------------------
-  | UI
-  |--------------------------------------------------------------------------
-  */
+    // 3. Kalkulasi Data AKTUAL
+    filteredData.forEach((p) => {
+      if (p.status_kepegawaian === "Non ASN") return;
 
+      const jabatanRaw = String(p.jabatan || "").trim();
+      const jabatanLower = jabatanRaw.toLowerCase();
+
+      const matchedPelaksana = PELAKSANA.find((pel) => pel.toLowerCase() === jabatanLower);
+      if (matchedPelaksana) {
+        if (SATPEL_DAERAH.includes(p.bidang)) {
+          pStats[matchedPelaksana].satpel++;
+        } else {
+          pStats[matchedPelaksana].pusat++;
+        }
+        pStats[matchedPelaksana].aktual++;
+        return;
+      }
+
+      let jenjang: string | null = null;
+      for (const j of JENJANG) {
+        if (jabatanLower.includes(j.toLowerCase())) {
+          jenjang = j;
+          break;
+        }
+      }
+      if (!jenjang) return;
+
+      let kategori: string | null = null;
+      if (jabatanLower.includes("instruktur")) kategori = "Instruktur";
+      else if (jabatanLower.includes("sumber daya manusia aparatur") || jabatanLower.includes("analis sdm")) kategori = "SDM";
+      else if (jabatanLower.includes("pengantar kerja")) kategori = "PengantarKerja";
+      else if (jabatanLower.includes("perencana")) kategori = "Perencana";
+      else if (jabatanLower.includes("arsiparis")) kategori = "Arsiparis";
+      else if (jabatanLower.includes("pranata komputer")) kategori = "Prakom";
+      else if (jabatanLower.includes("keuangan apbn") || jabatanLower.includes("analis pengelolaan keuangan")) kategori = "Keuangan";
+      else if (jabatanLower.includes("penata laksana barang")) kategori = "Barang";
+
+      if (!kategori) return;
+
+      mStats[jenjang].kategori[kategori].aktual++;
+      mStats[jenjang].TotalAktual++;
+      mTotals.kategori[kategori].aktual++;
+      gTotalAktual++;
+    });
+
+    // 4. Kalkulasi Grand Total
+    JENJANG.forEach((j) => {
+      KATEGORI.forEach((k) => {
+        const ideal = mStats[j].kategori[k.key].ideal;
+        mStats[j].TotalIdeal += ideal;
+        mTotals.kategori[k.key].ideal += ideal;
+        gTotalIdeal += ideal;
+      });
+    });
+
+    // 5. Kembalikan semua hasil kalkulasi
+    return {
+      matrixStats: mStats,
+      matrixTotals: mTotals,
+      pelaksanaStats: pStats,
+      grandTotalFungsionalAktual: gTotalAktual,
+      grandTotalFungsionalIdeal: gTotalIdeal,
+    };
+  }, [filteredData, dataPetaJabatan]);
+
+  // Ekstrak data hasil useMemo agar bisa dipakai langsung oleh UI di bawah
+  const { matrixStats, matrixTotals, pelaksanaStats, grandTotalFungsionalAktual, grandTotalFungsionalIdeal } = matrixData;
+
+  /* |--- UI RENDER ---| */
   return (
     <main className="min-h-screen bg-[#f5f7fb] text-slate-800 overflow-x-hidden">
-      {/* =====================================================
-          GLOBAL STYLE
-      ===================================================== */}
-
       <style jsx global>{`
         @keyframes fadeUp {
           from {
@@ -657,7 +408,6 @@ export default function DashboardClient({ dataPegawai }: Props) {
             transform: translateY(0);
           }
         }
-
         @keyframes float {
           0%,
           100% {
@@ -667,7 +417,6 @@ export default function DashboardClient({ dataPegawai }: Props) {
             transform: translateY(-8px);
           }
         }
-
         @keyframes pulseGlow {
           0%,
           100% {
@@ -677,13 +426,11 @@ export default function DashboardClient({ dataPegawai }: Props) {
             box-shadow: 0 0 30px rgba(59, 130, 246, 0.15);
           }
         }
-
         @keyframes growWidth {
           from {
             width: 0;
           }
         }
-
         @keyframes growHeight {
           from {
             transform: scaleY(0);
@@ -692,40 +439,29 @@ export default function DashboardClient({ dataPegawai }: Props) {
             transform: scaleY(1);
           }
         }
-
         .dashboard-card {
           animation: fadeUp 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
-
         .floating {
           animation: float 5s ease-in-out infinite;
         }
-
         .glow {
           animation: pulseGlow 3s ease-in-out infinite;
         }
-
         .bar-grow {
           animation: growWidth 1.2s cubic-bezier(0.16, 1, 0.3, 1);
         }
-
         .column-grow {
           transform-origin: bottom;
           animation: growHeight 1s cubic-bezier(0.16, 1, 0.3, 1);
         }
-
         .hide-scrollbar::-webkit-scrollbar {
           display: none;
         }
-
         .hide-scrollbar {
           scrollbar-width: none;
         }
       `}</style>
-
-      {/* =====================================================
-          BACKGROUND DECORATION
-      ===================================================== */}
 
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute -top-40 -right-40 w-[500px] h-[500px] bg-blue-300/10 rounded-full blur-3xl" />
@@ -734,103 +470,63 @@ export default function DashboardClient({ dataPegawai }: Props) {
       </div>
 
       <div className="relative max-w-[1600px] mx-auto px-4 md:px-6 lg:px-24 py-6 lg:py-8">
-        {/* =====================================================
-            HEADER
-        ===================================================== */}
-
+        {/* ================= HEADER ================= */}
         <section className="dashboard-card mb-6">
           <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-[#0f3557] via-[#15406A] to-[#1d5d91] shadow-2xl">
-            {/* Background Decoration */}
             <div className="absolute -right-24 -top-24 w-80 h-80 rounded-full bg-white/[0.04]" />
             <div className="absolute -left-20 -bottom-32 w-72 h-72 rounded-full bg-blue-300/[0.06]" />
             <div className="absolute right-1/3 bottom-0 w-40 h-40 rounded-full bg-white/[0.03]" />
 
             <div className="relative z-10">
-              {/* ===================================================== */}
-              {/* INSTITUTION HEADER */}
-              {/* ===================================================== */}
               <div className="px-6 pt-6 md:px-8 md:pt-8 lg:px-10 lg:pt-8">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                  {/* LOGO AREA */}
                   <div className="inline-flex items-center gap-3 w-fit rounded-2xl bg-white px-4 py-3 shadow-lg ring-1 ring-black/5">
-                    {/* Logo Kementerian */}
                     <div className="flex items-center justify-center w-14 h-14">
-                      <img src="logo-kemnaker.png" alt="Logo Kementerian Ketenagakerjaan Republik Indonesia" className="max-w-full max-h-full object-contain" />
+                      <img src="logo-kemnaker.png" alt="Logo Kementerian" className="max-w-full max-h-full object-contain" />
                     </div>
-
-                    {/* Divider */}
                     <div className="w-px h-10 bg-gray-200" />
-
-                    {/* Logo BBPVP */}
                     <div className="flex items-center justify-center w-14 h-14">
                       <img src="logo-bbpvp-makassar.png" alt="Logo BBPVP Makassar" className="max-w-full max-h-full object-contain" />
                     </div>
                   </div>
-
-                  {/* INSTITUTION NAME */}
                   <div className="sm:ml-1">
                     <p className="text-[9px] md:text-[10px] font-black uppercase tracking-[0.18em] text-blue-200">Kementerian Ketenagakerjaan Republik Indonesia</p>
-
                     <h2 className="mt-1 text-sm md:text-base font-bold text-white">Balai Besar Pelatihan Produktivitas dan Vokasi Makassar</h2>
                   </div>
                 </div>
               </div>
 
-              {/* ===================================================== */}
-              {/* MAIN HEADER CONTENT */}
-              {/* ===================================================== */}
               <div className="px-6 pb-7 pt-7 md:px-8 md:pb-8 md:pt-8 lg:px-10 lg:pb-10">
                 <div className="flex flex-col lg:flex-row justify-between gap-8">
-                  {/* LEFT CONTENT */}
                   <div className="max-w-3xl">
-                    {/* STATUS BADGE */}
                     <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/10 backdrop-blur-md">
                       <span className="relative flex h-2 w-2">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75" />
                         <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
                       </span>
-
                       <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-100">Sistem Monitoring SDM</span>
                     </div>
-
-                    {/* TITLE */}
                     <h1 className="mt-4 text-3xl md:text-4xl lg:text-5xl font-black tracking-tight text-white">Dashboard SDM</h1>
-
-                    {/* DESCRIPTION */}
                     <p className="mt-2 max-w-2xl text-sm md:text-base leading-relaxed text-blue-100">Pusat analitik dan monitoring sumber daya manusia secara real-time.</p>
-
-                    {/* ADMIN LOGIN */}
                     <Link href="/login" className="group inline-flex items-center gap-2 mt-5 px-4 py-2 rounded-xl bg-white text-[#15406A] hover:bg-blue-50 shadow-lg transition-all duration-200">
                       <span className="text-xs font-bold">Masuk sebagai Administrator</span>
-
                       <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                       </svg>
                     </Link>
                   </div>
 
-                  {/* ================================================= */}
-                  {/* HEALTH SCORE */}
-                  {/* ================================================= */}
                   <div className="floating flex items-center gap-5 bg-white/[0.08] backdrop-blur-xl border border-white/10 rounded-3xl px-5 py-4 self-start lg:min-w-[250px]">
                     <div className="relative w-20 h-20 shrink-0">
-                      <div
-                        className="w-20 h-20 rounded-full flex items-center justify-center"
-                        style={{
-                          background: `conic-gradient(#34d399 0% ${healthScore}%, rgba(255,255,255,.12) ${healthScore}% 100%)`,
-                        }}
-                      >
+                      <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ background: `conic-gradient(#34d399 0% ${healthScore}%, rgba(255,255,255,.12) ${healthScore}% 100%)` }}>
                         <div className="w-14 h-14 rounded-full bg-[#15406A] flex items-center justify-center shadow-inner">
                           <span className="text-xl font-black text-white">{healthScore}</span>
                         </div>
                       </div>
                     </div>
-
                     <div>
                       <p className="text-[10px] uppercase tracking-widest text-blue-200 font-bold">HR Health Score</p>
-
                       <p className="text-xl font-black text-white mt-1">{healthLabel}</p>
-
                       <p className="text-[10px] text-blue-200 mt-1">Berdasarkan indikator SDM</p>
                     </div>
                   </div>
@@ -839,10 +535,8 @@ export default function DashboardClient({ dataPegawai }: Props) {
             </div>
           </div>
         </section>
-        {/* =====================================================
-            FILTER BAR
-        ===================================================== */}
 
+        {/* ================= FILTER BAR ================= */}
         <section className="dashboard-card bg-white rounded-3xl border border-slate-200 shadow-sm p-4 mb-6">
           <div className="flex flex-col lg:flex-row gap-4 justify-between">
             <div className="flex gap-2 flex-wrap">
@@ -856,21 +550,17 @@ export default function DashboardClient({ dataPegawai }: Props) {
                 </button>
               ))}
             </div>
-
             <div className="flex gap-2">
               <button onClick={() => setUnitFilter("Semua")} className={`px-4 py-2 rounded-xl text-xs font-bold ${unitFilter === "Semua" ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-500"}`}>
                 Semua Unit
               </button>
-
               <button onClick={() => setUnitFilter("Pusat")} className={`px-4 py-2 rounded-xl text-xs font-bold ${unitFilter === "Pusat" ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"}`}>
                 BBPVP Makassar
               </button>
-
               <button onClick={() => setUnitFilter("Satpel")} className={`px-4 py-2 rounded-xl text-xs font-bold ${unitFilter === "Satpel" ? "bg-orange-500 text-white" : "bg-slate-100 text-slate-500"}`}>
                 SATPEL
               </button>
             </div>
-
             <div className="relative">
               <input
                 value={search}
@@ -882,162 +572,99 @@ export default function DashboardClient({ dataPegawai }: Props) {
           </div>
         </section>
 
-        {/* =====================================================
-            KPI CARDS
-        ===================================================== */}
-
+        {/* ================= KPI CARDS ================= */}
         <section className="grid grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
           <KpiCard title="Total Pegawai" value={totalPegawai} subtitle="Pegawai terdata" icon="👥" gradient="from-[#15406A] to-[#2876ad]" onClick={() => openDataPegawai("")} />
-
           <KpiCard title="PNS" value={totalPNS} subtitle={`${persen(totalPNS)}% dari total`} icon="🛡️" gradient="from-emerald-500 to-teal-600" onClick={() => openDetail("status", "PNS")} />
-
           <KpiCard title="PPPK" value={totalPPPK} subtitle={`${persen(totalPPPK)}% dari total`} icon="📋" gradient="from-blue-500 to-indigo-600" onClick={() => openDetail("status", "PPPK")} />
-
           <KpiCard title="Non ASN" value={totalNonASN} subtitle={`${persen(totalNonASN)}% dari total`} icon="👤" gradient="from-amber-400 to-orange-500" onClick={() => openDetail("status", "Non ASN")} />
-
           <KpiCard title="ASN" value={totalASN} subtitle={`${persen(totalASN)}% dari total`} icon="🏛️" gradient="from-violet-500 to-purple-600" onClick={() => openDetail("status", "ASN")} />
         </section>
 
-        {/* =====================================================
-            QUICK INSIGHT
-        ===================================================== */}
-
+        {/* ================= QUICK INSIGHT ================= */}
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <InsightCard type="danger" title="Perhatian Pensiun" value={`${retirementRisk} pegawai`} description="Memasuki masa pensiun tahun ini atau maksimal 2 tahun lagi." onClick={() => openDetail("pensiun-risk", "0–2 Tahun")} />
           <InsightCard type="warning" title="Cuti Kritis" value={`${criticalLeave} pegawai`} description="Memiliki sisa cuti maksimal 3 hari." onClick={() => openDetail("cuti", "Kritis")} />
           <InsightCard type="success" title="Cuti Terpakai" value={`${totalCutiTerpakai} hari`} description={`Total penggunaan cuti selama tahun ${currentYear}.`} />
         </section>
 
-        {/* =====================================================
-            UNIT + GENERATION
-        ===================================================== */}
-
+        {/* ================= UNIT + GENERATION ================= */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          {/* UNIT */}
-
           <div className="dashboard-card bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <SectionTitle color="blue" title="Sebaran Unit Kerja" subtitle="Distribusi pegawai berdasarkan lokasi kerja." />
-
             <div className="space-y-5 mt-6">
               <ProgressRow label="BBPVP Makassar" value={totalPusat} total={totalPegawai} color="bg-blue-600" onClick={() => openDetail("unit", "Pusat")} />
-
               <ProgressRow label="Satpel Daerah" value={totalSatpel} total={totalPegawai} color="bg-orange-500" onClick={() => openDetail("unit", "Satpel")} />
             </div>
-
             <div className="grid grid-cols-3 gap-2 mt-6">
               {satpelStats.map((item) => (
                 <button key={item.nama} type="button" onClick={() => openDetail("satpel", item.nama)} className="rounded-2xl bg-slate-50 p-3 text-center hover:bg-orange-50 hover:-translate-y-1 transition cursor-pointer">
                   <p className="text-[9px] text-slate-400 font-bold uppercase">{item.nama.replace("SATPEL ", "")}</p>
-
                   <p className="text-xl font-black text-slate-800 mt-1">{item.total}</p>
-
                   <p className="text-[8px] text-slate-400 mt-1">Lihat detail →</p>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* GENERASI */}
-
           <div className="lg:col-span-2 dashboard-card bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <SectionTitle color="indigo" title="Peta Generasi Pegawai" subtitle="Komposisi generasi berdasarkan tahun kelahiran." />
-
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
               {Object.entries(generasi).map(([label, value]) => (
                 <button key={label} type="button" onClick={() => openDetail("generasi", label)} className="group rounded-2xl p-4 bg-slate-50 hover:bg-indigo-50 transition-all text-left cursor-pointer hover:-translate-y-1">
                   <p className="text-xs font-bold text-slate-500">{label}</p>
-
                   <p className="text-3xl font-black text-slate-800 mt-2 group-hover:scale-105 origin-left transition">{value}</p>
-
                   <p className="text-[10px] text-slate-400 mt-1">{persen(value)}% populasi</p>
-
                   <p className="text-[9px] text-indigo-500 font-bold mt-2">Lihat pegawai →</p>
                 </button>
               ))}
             </div>
-
             <div className="mt-6 h-8 rounded-full overflow-hidden flex bg-slate-100">
               {Object.entries(generasi).map(([label, value], index) => {
                 const colors = ["bg-slate-700", "bg-blue-500", "bg-emerald-500", "bg-amber-400"];
-
-                return (
-                  <div
-                    key={label}
-                    title={`${label}: ${value} orang`}
-                    className={`${colors[index]} bar-grow h-full`}
-                    style={{
-                      width: `${totalPegawai ? (value / totalPegawai) * 100 : 0}%`,
-                    }}
-                  />
-                );
+                return <div key={label} title={`${label}: ${value} orang`} className={`${colors[index]} bar-grow h-full`} style={{ width: `${totalPegawai ? (value / totalPegawai) * 100 : 0}%` }} />;
               })}
             </div>
           </div>
         </section>
 
-        {/* =====================================================
-            CUTI ANALYTICS
-        ===================================================== */}
-
+        {/* ================= CUTI ================= */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <div className="flex justify-between items-start">
               <SectionTitle color="sky" title="Analitik Cuti" subtitle="Monitoring hak cuti dan penggunaan cuti." />
-
               <div className="text-right">
                 <p className="text-[9px] uppercase tracking-widest font-bold text-slate-400">Rata-rata sisa</p>
-
                 <p className="text-2xl font-black text-sky-600">
                   {rataCuti}
                   <span className="text-xs ml-1">hari</span>
                 </p>
               </div>
             </div>
-
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
               <LeaveBox label="Kritis" value={cuti.kritis} color="red" onClick={() => openDetail("cuti", "Kritis")} />
-
               <LeaveBox label="Menipis" value={cuti.menipis} color="orange" onClick={() => openDetail("cuti", "Menipis")} />
-
               <LeaveBox label="Aman" value={cuti.aman} color="emerald" onClick={() => openDetail("cuti", "Aman")} />
-
               <LeaveBox label="Berlebih" value={cuti.berlebih} color="sky" onClick={() => openDetail("cuti", "Berlebih")} />
             </div>
-
-            {/* MONTHLY USAGE */}
 
             <div className="mt-20">
               <div className="flex justify-between mb-4">
                 <div>
                   <p className="font-black text-lg">Tren Penggunaan Cuti</p>
-
                   <p className="text-[10px] text-slate-400">Total durasi cuti per bulan tahun {currentYear}.</p>
                 </div>
-
                 <span className="text-xs font-black text-sky-600">{totalCutiTerpakai} hari</span>
               </div>
-
               <div className="flex items-end gap-2 h-44">
                 {monthlyLeave.map((value, index) => {
                   const height = maxMonthlyLeave > 0 ? (value / maxMonthlyLeave) * 100 : 0;
-
                   return (
                     <div key={index} className="flex-1 h-full flex flex-col justify-end items-center group cursor-pointer" onClick={() => openDetail("cuti-bulan", BULAN[index])}>
-                      {/* AREA BATANG */}
                       <div className="relative w-full h-full flex items-end justify-center">
-                        {/* TOOLTIP */}
                         {value > 0 && <span className="absolute bottom-full mb-2 text-[9px] font-black text-slate-700 opacity-0 group-hover:opacity-100 transition">{value}</span>}
-
-                        {/* BATANG */}
-                        <div
-                          className="column-grow w-full max-w-8 bg-sky-500 rounded-t-lg group-hover:bg-[#15406A] transition-colors"
-                          style={{
-                            height: `${value > 0 ? Math.max(height, 4) : 0}%`,
-                          }}
-                        />
+                        <div className="column-grow w-full max-w-8 bg-sky-500 rounded-t-lg group-hover:bg-[#15406A] transition-colors" style={{ height: `${value > 0 ? Math.max(height, 4) : 0}%` }} />
                       </div>
-
-                      {/* LABEL BULAN */}
                       <span className="text-[8px] md:text-[9px] text-slate-400 mt-2">{BULAN[index]}</span>
                     </div>
                   );
@@ -1046,31 +673,24 @@ export default function DashboardClient({ dataPegawai }: Props) {
             </div>
           </div>
 
-          {/* CUTI WATCHLIST */}
-
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <div className="flex justify-between items-start">
               <SectionTitle color="amber" title="Cuti Perlu Dipantau" subtitle="Sisa cuti lebih dari 12 hari." />
-
               <span className="bg-sky-100 text-sky-700 px-2 py-1 rounded-lg text-[10px] font-black">{cutiWatchlist.length}</span>
             </div>
-
             <div className="space-y-2 mt-5 max-h-[390px] overflow-y-auto">
               {(showAllLeave ? cutiWatchlist : cutiWatchlist.slice(0, 6)).map((item, index) => (
                 <div key={`${item.nama}-${index}`} className="group p-3 rounded-2xl bg-sky-50/70 border border-sky-100 hover:bg-sky-100 transition">
                   <div className="flex justify-between gap-3">
                     <Link href={`admin/data-pegawai/${item.id}`}>
                       <p className="text-xs font-black truncate">{item.nama}</p>
-
                       <p className="text-[9px] text-slate-500 truncate mt-1">{item.jabatan}</p>
                     </Link>
-
                     <span className="shrink-0 self-center bg-sky-600 text-white px-2 py-1 rounded-lg text-[9px] font-black">{item.total} hari</span>
                   </div>
                 </div>
               ))}
             </div>
-
             {cutiWatchlist.length > 6 && (
               <button onClick={() => setShowAllLeave(!showAllLeave)} className="w-full mt-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold">
                 {showAllLeave ? "Tampilkan Lebih Sedikit" : "Lihat Semua"}
@@ -1079,40 +699,25 @@ export default function DashboardClient({ dataPegawai }: Props) {
           </div>
         </section>
 
-        {/* =====================================================
-            AGE + GENDER + RETIREMENT
-        ===================================================== */}
-
+        {/* ================= USIA, GENDER, PENSIUN ================= */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          {/* AGE */}
-
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <SectionTitle color="teal" title="Piramida Usia" subtitle="Distribusi usia pegawai." />
-
             <div className="space-y-4 mt-6">
               {Object.entries(usia).map(([label, value]) => (
                 <ProgressRow key={label} label={label} value={value} total={totalPegawai} color="bg-teal-500" onClick={() => openDetail("usia", label)} />
               ))}
             </div>
           </div>
-
-          {/* GENDER */}
-
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <SectionTitle color="pink" title="Komposisi Gender" subtitle="Berdasarkan digit NIP ASN." />
-
             <div className="flex gap-4 mt-8">
               <GenderCard label="Laki-Laki" value={gender.laki} percentage={totalASN ? Math.round((gender.laki / totalASN) * 100) : 0} icon="♂" color="blue" onClick={() => openDetail("gender", "L")} />
-
               <GenderCard label="Perempuan" value={gender.perempuan} percentage={totalASN ? Math.round((gender.perempuan / totalASN) * 100) : 0} icon="♀" color="pink" onClick={() => openDetail("gender", "P")} />
             </div>
           </div>
-
-          {/* RETIREMENT */}
-
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <SectionTitle color="red" title="Proyeksi Pensiun" subtitle="Peta kebutuhan regenerasi." />
-
             <div className="space-y-4 mt-6">
               {Object.entries(pensiun).map(([label, value]) => (
                 <ProgressRow
@@ -1128,37 +733,28 @@ export default function DashboardClient({ dataPegawai }: Props) {
           </div>
         </section>
 
-        {/* =====================================================
-            RETIREMENT WATCHLIST
-        ===================================================== */}
-
+        {/* ================= WATCHLIST PENSIUN ================= */}
         <section className="bg-white rounded-3xl border border-red-100 shadow-sm p-6 mb-6">
           <div className="flex justify-between items-center">
             <SectionTitle color="red" title="Watchlist Pensiun" subtitle="Pegawai yang perlu dipersiapkan untuk regenerasi." />
-
             <span className="px-3 py-1.5 rounded-xl bg-red-50 text-red-600 text-xs font-black">{pensiunWatchlist.length} Pegawai</span>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
             {(showAllRetirement ? pensiunWatchlist : pensiunWatchlist.slice(0, 6)).map((item, index) => (
               <div key={`${item.nama}-${index}`} className="group rounded-2xl border border-red-100 bg-red-50/50 p-4 hover:bg-red-50 hover:-translate-y-1 transition-all">
                 <div className="flex justify-between gap-3">
                   <Link href={`admin/data-pegawai/${item.id}`} className="transition-colors group cursor-pointer border border-transparent ">
                     <p className="font-black text-sm truncate">{item.nama}</p>
-
                     <p className="text-[10px] text-slate-500 truncate mt-1">{item.jabatan}</p>
                   </Link>
-
                   <div className={`shrink-0 rounded-xl px-2 py-1.5 text-center ${item.sisaTahun === 0 ? "bg-red-600 text-white" : "bg-orange-500 text-white"}`}>
                     <p className="text-[9px] font-bold">PENSIUN</p>
-
                     <p className="font-black">{item.sisaTahun === 0 ? "TAHUN INI" : `${item.sisaTahun} THN`}</p>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-
           {pensiunWatchlist.length > 6 && (
             <button onClick={() => setShowAllRetirement(!showAllRetirement)} className="mt-5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold">
               {showAllRetirement ? "Tampilkan Lebih Sedikit" : "Lihat Semua Watchlist"}
@@ -1166,38 +762,23 @@ export default function DashboardClient({ dataPegawai }: Props) {
           )}
         </section>
 
-        {/* =====================================================
-            GOLONGAN + PENDIDIKAN
-        ===================================================== */}
-
+        {/* ================= GOLONGAN & PENDIDIKAN ================= */}
         <section className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          {/* GOLONGAN */}
-
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <SectionTitle color="emerald" title="Demografi Kepangkatan PNS" subtitle="Distribusi ASN berdasarkan golongan." />
-
             <div className="flex items-end gap-4 md:gap-8 h-64 mt-8 border-b border-slate-200">
               {Object.entries(golonganPNS).map(([label, value]) => {
                 const max = Math.max(...Object.values(golonganPNS), 1);
                 const height = (value / max) * 100;
-
                 return (
                   <div key={label} className="flex-1 h-full flex flex-col justify-end items-center group cursor-pointer" onClick={() => openDetail("golongan", label)}>
-                    {/* AREA BATANG */}
                     <div className="relative w-full h-full flex items-end justify-center">
-                      {/* TOOLTIP */}
                       <span className="absolute bottom-full mb-2 text-xs font-black text-slate-700 opacity-0 group-hover:opacity-100 transition">{value}</span>
-
-                      {/* BATANG */}
                       <div
                         className="column-grow w-full max-w-14 bg-gradient-to-t from-emerald-600 to-emerald-400 rounded-t-xl group-hover:from-emerald-800 group-hover:to-emerald-400 transition-all"
-                        style={{
-                          height: `${value > 0 ? Math.max(height, 5) : 0}%`,
-                        }}
+                        style={{ height: `${value > 0 ? Math.max(height, 5) : 0}%` }}
                       />
                     </div>
-
-                    {/* LABEL */}
                     <span className="text-[10px] font-bold text-slate-500 py-3">{label}</span>
                   </div>
                 );
@@ -1206,41 +787,27 @@ export default function DashboardClient({ dataPegawai }: Props) {
           </div>
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <SectionTitle color="blue" title="Demografi Kepangkatan PPPK" subtitle="Distribusi ASN berdasarkan golongan." />
-
             <div className="flex items-end gap-4 md:gap-8 h-64 mt-8 border-b border-slate-200">
               {Object.entries(golonganPPPK).map(([label, value]) => {
                 const max = Math.max(...Object.values(golonganPPPK), 1);
                 const height = (value / max) * 100;
-
                 return (
                   <div key={label} className="flex-1 h-full flex flex-col justify-end items-center group cursor-pointer" onClick={() => openDetail("golongan-pppk", label)}>
-                    {/* AREA BATANG */}
                     <div className="relative w-full h-full flex items-end justify-center">
-                      {/* TOOLTIP */}
                       <span className="absolute bottom-full mb-2 text-xs font-black text-slate-700 opacity-0 group-hover:opacity-100 transition">{value}</span>
-
-                      {/* BATANG */}
                       <div
                         className="column-grow w-full max-w-14 bg-gradient-to-t from-blue-600 to-blue-400 rounded-t-xl group-hover:from-blue-800 group-hover:to-blue-600 transition-all"
-                        style={{
-                          height: `${value > 0 ? Math.max(height, 5) : 0}%`,
-                        }}
+                        style={{ height: `${value > 0 ? Math.max(height, 5) : 0}%` }}
                       />
                     </div>
-
-                    {/* LABEL */}
                     <span className="text-[10px] font-bold text-slate-500 py-3">{label}</span>
                   </div>
                 );
               })}
             </div>
           </div>
-
-          {/* PENDIDIKAN */}
-
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <SectionTitle color="cyan" title="Tingkat Pendidikan" subtitle="Estimasi berdasarkan gelar akademik." />
-
             <div className="space-y-5 mt-7">
               {Object.entries(pendidikan).map(([label, value]) => (
                 <ProgressRow key={label} label={label} value={value} total={Math.max(...Object.values(pendidikan), 1)} color="bg-cyan-500" onClick={() => openDetail("pendidikan", label)} />
@@ -1249,123 +816,138 @@ export default function DashboardClient({ dataPegawai }: Props) {
           </div>
         </section>
 
-        {/* =====================================================
-            MATRIX FUNGSIONAL
-        ===================================================== */}
-
+        {/* ================= MATRIX FUNGSIONAL ================= */}
         <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 mb-6">
           <div className="flex flex-col md:flex-row justify-between gap-4">
-            <SectionTitle color="violet" title="Peta Jabatan Fungsional" subtitle="Sebaran ASN berdasarkan rumpun dan jenjang jabatan." />
+            <SectionTitle color="violet" title="Peta Jabatan Fungsional" subtitle="Sebaran aktual vs kebutuhan ideal berdasarkan tabel peta jabatan (Aktual / Ideal)." />
           </div>
-
           <div className="overflow-x-auto mt-6">
             <table className="w-full min-w-[950px] border-collapse">
               <thead>
                 <tr className="bg-slate-100">
                   <th className="sticky left-0 z-20 bg-slate-100 text-left px-4 py-4 text-[10px] font-black uppercase">Jenjang</th>
-
                   {KATEGORI.map((kategori) => (
                     <th key={kategori.key} className="px-3 py-4 text-[9px] font-black uppercase text-slate-500">
                       {kategori.label}
                     </th>
                   ))}
-
                   <th className="px-4 py-4 text-[10px] font-black bg-blue-50 text-blue-700">TOTAL</th>
                 </tr>
               </thead>
-
               <tbody>
                 {JENJANG.map((jenjang) => (
-                  <tr key={jenjang} className="border-b border-slate-100 hover:bg-violet-50/50 transition">
+                  <tr key={jenjang} className="border-b border-slate-100 hover:bg-slate-50 transition">
                     <td className="sticky left-0 z-10 bg-white px-4 py-4 font-black text-xs">{jenjang}</td>
-
                     {KATEGORI.map((kategori) => {
-                      const value = matrixStats[jenjang][kategori.key];
+                      const data = matrixStats[jenjang].kategori[kategori.key];
+                      const isExist = data && (data.aktual > 0 || data.ideal > 0);
+                      const isDeficit = isExist && data.aktual < data.ideal;
+                      const btnColorClass = isDeficit ? "bg-rose-100 text-rose-700 hover:bg-rose-200" : "bg-violet-100 text-violet-700 hover:bg-violet-200";
 
                       return (
-                        <td key={kategori.key} className="text-center px-3 py-4">
-                          {value > 0 ? (
-                            <button
-                              type="button"
-                              onClick={() => openDetail("fungsional", jenjang, kategori.key)}
-                              className="inline-flex w-8 h-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700 font-black text-xs hover:scale-125 hover:bg-violet-200 transition cursor-pointer"
-                              title={`Lihat ${value} pegawai`}
-                            >
-                              {value}
-                            </button>
+                        <td key={kategori.key} className="text-center px-3 py-3 align-middle">
+                          {isExist ? (
+                            <div className="flex flex-col items-center justify-center gap-1.5">
+                              {data.kelas && <span className="text-[8px] font-bold bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded-sm uppercase tracking-wider">Kls {data.kelas}</span>}
+                              <button
+                                type="button"
+                                onClick={() => openDetail("fungsional", jenjang, kategori.key)}
+                                className={`inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 font-black text-xs hover:scale-110 transition cursor-pointer ${btnColorClass}`}
+                                title={`Aktual: ${data.aktual} | Ideal: ${data.ideal} (Klik untuk detail)`}
+                              >
+                                <span className="text-sm">{data.aktual}</span>
+                                <span className="mx-1 opacity-50 font-normal">/</span>
+                                <span className="text-[10px] opacity-80">{data.ideal}</span>
+                              </button>
+                            </div>
                           ) : (
                             <span className="text-slate-300">-</span>
                           )}
                         </td>
                       );
                     })}
-
-                    <td className="text-center font-black bg-blue-50/50 text-blue-700">{matrixStats[jenjang].Total}</td>
+                    <td className="text-center align-middle bg-blue-50/50 py-3">
+                      <div className="flex flex-col items-center justify-center gap-0.5">
+                        <span className="font-black text-blue-700">{matrixStats[jenjang].TotalAktual}</span>
+                        <span className="text-[9px] text-blue-500 opacity-70">/ {matrixStats[jenjang].TotalIdeal}</span>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
-
               <tfoot>
                 <tr className="bg-slate-100">
                   <td className="sticky left-0 bg-slate-100 px-4 py-4 font-black text-xs">TOTAL</td>
-
                   {KATEGORI.map((kategori) => (
-                    <td key={kategori.key} className="text-center font-black text-sm">
-                      {matrixTotals[kategori.key]}
+                    <td key={kategori.key} className="text-center align-middle py-3">
+                      <div className="flex flex-col items-center justify-center gap-0.5">
+                        <span className="font-black text-sm text-slate-700">{matrixTotals.kategori[kategori.key].aktual}</span>
+                        <span className="text-[9px] font-bold text-slate-400">/ {matrixTotals.kategori[kategori.key].ideal}</span>
+                      </div>
                     </td>
                   ))}
-
-                  <td className="text-center bg-[#15406A] text-white font-black text-lg">{matrixTotals.Total}</td>
+                  <td className="text-center bg-[#15406A] text-white py-3">
+                    <div className="flex flex-col items-center justify-center gap-0.5">
+                      <span className="font-black text-lg">{grandTotalFungsionalAktual}</span>
+                      <span className="text-[10px] text-blue-200">/ {grandTotalFungsionalIdeal}</span>
+                    </div>
+                  </td>
                 </tr>
               </tfoot>
             </table>
           </div>
         </section>
 
-        {/* =====================================================
-            PELAKSANA
-        ===================================================== */}
-
+        {/* ================= MATRIX PELAKSANA ================= */}
         <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 mb-10">
-          <SectionTitle color="orange" title="Peta Jabatan Pelaksana" subtitle="Distribusi PNS pada jabatan pelaksana antara BBPVP dan Satpel." />
-
+          <SectionTitle color="orange" title="Peta Jabatan Pelaksana" subtitle="Distribusi PNS pada jabatan pelaksana (Aktual / Ideal) beserta kelas jabatan." />
           <div className="overflow-x-auto mt-6">
             <table className="w-full min-w-[850px]">
               <thead>
-                <tr className="bg-slate-100">
+                <tr className="bg-slate-100 border-b border-slate-200">
                   <th className="text-left px-4 py-4 text-[10px] font-black uppercase">Jabatan</th>
-
-                  <th className="text-center px-4 py-4 text-[10px] font-black uppercase">Total</th>
-
-                  <th className="text-center px-4 py-4 text-[10px] font-black uppercase text-orange-600">SATPEL</th>
-
-                  <th className="text-center px-4 py-4 text-[10px] font-black uppercase text-blue-600">BBPVP Makassar</th>
+                  <th className="text-center px-4 py-4 text-[10px] font-black uppercase text-slate-500">TOTAL (AKTUAL/IDEAL)</th>
+                  <th className="text-center px-4 py-4 text-[10px] font-black uppercase text-orange-600">SATPEL (AKTUAL)</th>
+                  <th className="text-center px-4 py-4 text-[10px] font-black uppercase text-blue-600">BBPVP Makassar (AKTUAL)</th>
                 </tr>
               </thead>
-
               <tbody>
                 {PELAKSANA.map((jabatan, index) => {
                   const item = pelaksanaStats[jabatan];
+                  const isExist = item && (item.aktual > 0 || item.ideal > 0);
+                  const isDeficit = isExist && item.aktual < item.ideal;
+                  const btnColorClass = isDeficit ? "bg-rose-100 text-rose-700 hover:bg-rose-200" : "bg-orange-100 text-orange-700 hover:bg-orange-200";
 
                   return (
                     <tr key={jabatan} className="border-b border-slate-100 hover:bg-orange-50/50 transition">
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4 align-middle">
                         <div className="flex gap-3 items-center">
-                          <span className="w-7 h-7 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center text-[10px] font-black">{index + 1}</span>
-
+                          <span className="w-7 h-7 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center text-[10px] font-black">{index + 1}</span>
                           <span className="font-bold text-xs">{jabatan}</span>
                         </div>
                       </td>
 
-                      {/* TOTAL */}
-                      <td className="text-center">
-                        <button type="button" onClick={() => openDetail("jabatan", jabatan)} className="font-black text-[#15406A] hover:text-blue-600 hover:underline cursor-pointer">
-                          {item.total}
-                        </button>
+                      <td className="text-center align-middle py-3">
+                        {isExist ? (
+                          <div className="flex flex-col items-center justify-center gap-1.5">
+                            {item.kelas && <span className="text-[8px] font-bold bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded-sm uppercase tracking-wider">Kls {item.kelas}</span>}
+                            <button
+                              type="button"
+                              onClick={() => openDetail("jabatan", jabatan)}
+                              className={`inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 font-black text-xs hover:scale-110 transition cursor-pointer ${btnColorClass}`}
+                              title={`Aktual: ${item.aktual} | Ideal: ${item.ideal} (Klik untuk detail)`}
+                            >
+                              <span className="text-sm">{item.aktual}</span>
+                              <span className="mx-1 opacity-50 font-normal">/</span>
+                              <span className="text-[10px] opacity-80">{item.ideal}</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
                       </td>
 
-                      {/* SATPEL */}
-                      <td className="text-center">
+                      <td className="text-center align-middle">
                         {item.satpel > 0 ? (
                           <button
                             type="button"
@@ -1375,12 +957,11 @@ export default function DashboardClient({ dataPegawai }: Props) {
                             {item.satpel}
                           </button>
                         ) : (
-                          "-"
+                          <span className="text-slate-300">-</span>
                         )}
                       </td>
 
-                      {/* BBPVP MAKASSAR */}
-                      <td className="text-center">
+                      <td className="text-center align-middle">
                         {item.pusat > 0 ? (
                           <button
                             type="button"
@@ -1390,7 +971,7 @@ export default function DashboardClient({ dataPegawai }: Props) {
                             {item.pusat}
                           </button>
                         ) : (
-                          "-"
+                          <span className="text-slate-300">-</span>
                         )}
                       </td>
                     </tr>
@@ -1405,33 +986,23 @@ export default function DashboardClient({ dataPegawai }: Props) {
   );
 }
 
-/*
-|--------------------------------------------------------------------------
-| COMPONENTS
-|--------------------------------------------------------------------------
-*/
+/* |--- COMPONENTS ---| */
+
 function KpiCard({ title, value, subtitle, icon, gradient, onClick }: { title: string; value: number; subtitle: string; icon: string; gradient: string; onClick?: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`group relative overflow-hidden rounded-3xl bg-gradient-to-br ${gradient} text-white p-5 shadow-lg hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 text-left w-full ${
-        onClick ? "cursor-pointer" : "cursor-default"
-      }`}
+      className={`group relative overflow-hidden rounded-3xl bg-gradient-to-br ${gradient} text-white p-5 shadow-lg hover:-translate-y-1 hover:shadow-2xl transition-all duration-300 text-left w-full ${onClick ? "cursor-pointer" : "cursor-default"}`}
     >
       <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full bg-white/10 group-hover:scale-150 transition-transform duration-700" />
-
       <div className="relative">
         <div className="flex justify-between items-start">
           <p className="text-[9px] uppercase tracking-widest font-black opacity-70">{title}</p>
-
           <span className="text-xl opacity-70 group-hover:scale-125 transition-transform">{icon}</span>
         </div>
-
         <p className="text-3xl md:text-4xl font-black mt-4 tracking-tight">{value}</p>
-
         <p className="text-[10px] mt-2 opacity-70 font-medium">{subtitle}</p>
-
         {onClick && <p className="text-[9px] mt-3 opacity-60 font-bold">Klik untuk melihat detail →</p>}
       </div>
     </button>
@@ -1440,35 +1011,17 @@ function KpiCard({ title, value, subtitle, icon, gradient, onClick }: { title: s
 
 function InsightCard({ type, title, value, description, onClick }: { type: "danger" | "warning" | "success"; title: string; value: string; description: string; onClick?: () => void }) {
   const config = {
-    danger: {
-      bg: "bg-red-50",
-      border: "border-red-100",
-      icon: "🚨",
-      color: "text-red-600",
-    },
-    warning: {
-      bg: "bg-amber-50",
-      border: "border-amber-100",
-      icon: "⚠️",
-      color: "text-amber-600",
-    },
-    success: {
-      bg: "bg-emerald-50",
-      border: "border-emerald-100",
-      icon: "✓",
-      color: "text-emerald-600",
-    },
+    danger: { bg: "bg-red-50", border: "border-red-100", icon: "🚨", color: "text-red-600" },
+    warning: { bg: "bg-amber-50", border: "border-amber-100", icon: "⚠️", color: "text-amber-600" },
+    success: { bg: "bg-emerald-50", border: "border-emerald-100", icon: "✓", color: "text-emerald-600" },
   }[type];
 
   return (
     <button type="button" onClick={onClick} className={`rounded-3xl ${config.bg} ${config.border} border p-5 flex gap-4 hover:-translate-y-1 transition-all ${onClick ? "cursor-pointer" : "cursor-default"}`}>
       <div className="w-11 h-11 rounded-2xl bg-white flex items-center justify-center text-xl shadow-sm shrink-0">{config.icon}</div>
-
       <div className="min-w-0">
         <p className="text-[9px] uppercase tracking-widest font-black text-slate-400">{title}</p>
-
         <p className={`text-xl font-black ${config.color} mt-1`}>{value}</p>
-
         <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{description}</p>
       </div>
     </button>
@@ -1489,15 +1042,12 @@ function SectionTitle({ color, title, subtitle }: { color: string; title: string
     orange: "bg-orange-500",
     amber: "bg-amber-500",
   };
-
   return (
     <div>
       <div className="flex items-center gap-3">
         <span className={`w-2.5 h-7 rounded-full ${colors[color] || "bg-blue-500"}`} />
-
         <h2 className="text-base md:text-lg font-black text-slate-800">{title}</h2>
       </div>
-
       <p className="text-[10px] md:text-xs text-slate-400 mt-2 ml-5">{subtitle}</p>
     </div>
   );
@@ -1505,25 +1055,17 @@ function SectionTitle({ color, title, subtitle }: { color: string; title: string
 
 function ProgressRow({ label, value, total, color, onClick }: { label: string; value: number; total: number; color: string; onClick?: () => void }) {
   const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-
   return (
     <button type="button" onClick={onClick} className={`w-full text-left ${onClick ? "cursor-pointer hover:bg-slate-50 rounded-xl p-2 -m-2" : ""}`}>
       <div className="flex justify-between items-center mb-2">
         <span className="text-xs font-bold text-slate-600">{label}</span>
-
         <span className="text-xs font-black text-slate-800">
           {value}
           <span className="text-[9px] text-slate-400 ml-1">({percentage}%)</span>
         </span>
       </div>
-
       <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
-        <div
-          className={`h-full ${color} rounded-full bar-grow`}
-          style={{
-            width: `${percentage}%`,
-          }}
-        />
+        <div className={`h-full ${color} rounded-full bar-grow`} style={{ width: `${percentage}%` }} />
       </div>
     </button>
   );
@@ -1536,40 +1078,23 @@ function LeaveBox({ label, value, color, onClick }: { label: string; value: numb
     emerald: "bg-emerald-50 text-emerald-600 border-emerald-100",
     sky: "bg-sky-50 text-sky-600 border-sky-100",
   };
-
   return (
     <button type="button" onClick={onClick} className={`rounded-2xl border p-4 ${colors[color]} hover:-translate-y-1 hover:shadow-md transition-all text-left ${onClick ? "cursor-pointer" : ""}`}>
       <p className="text-[9px] uppercase font-black opacity-60">{label}</p>
-
       <p className="text-2xl font-black mt-2">{value}</p>
-
       <p className="text-[9px] opacity-60">pegawai</p>
-
       <p className="text-[8px] mt-2 font-bold opacity-60">Lihat detail →</p>
     </button>
   );
 }
 
 function GenderCard({ label, value, percentage, icon, color, onClick }: { label: string; value: number; percentage: number; icon: string; color: "blue" | "pink"; onClick?: () => void }) {
-  const style =
-    color === "blue"
-      ? {
-          bg: "bg-blue-50",
-          text: "text-blue-600",
-        }
-      : {
-          bg: "bg-pink-50",
-          text: "text-pink-600",
-        };
-
+  const style = color === "blue" ? { bg: "bg-blue-50", text: "text-blue-600" } : { bg: "bg-pink-50", text: "text-pink-600" };
   return (
     <button type="button" onClick={onClick} className={`flex-1 rounded-2xl ${style.bg} p-4 text-center group hover:scale-[1.03] transition cursor-pointer`}>
       <div className={`w-11 h-11 rounded-full bg-white ${style.text} flex items-center justify-center mx-auto text-2xl font-black shadow-sm`}>{icon}</div>
-
       <p className="text-[10px] font-bold text-slate-500 mt-3">{label}</p>
-
       <p className={`text-3xl font-black ${style.text} mt-1`}>{value}</p>
-
       <span className="inline-block mt-1 px-2 py-0.5 bg-white rounded-lg text-[9px] font-black">{percentage}%</span>
     </button>
   );
