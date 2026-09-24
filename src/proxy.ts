@@ -2,17 +2,18 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const SECRET_KEY = JWT_SECRET ? new TextEncoder().encode(JWT_SECRET) : null;
+// 1. PERBAIKAN: Samakan persis dengan yang ada di file login
+const SECRET_KEY = new TextEncoder().encode(process.env.JWT_SECRET || "kunci_cadangan");
 
-// Fungsi sekarang bernama proxy
-export async function proxy(request: NextRequest) {
+// 2. PERBAIKAN: Fungsi Next.js Middleware HARUS bernama 'middleware', bukan 'proxy'
+export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const token = request.cookies.get('admin_session')?.value;
   let isTokenValid = false;
 
-  // 1. Cek dulu apakah tiketnya (token) valid jika ada
-  if (token && SECRET_KEY) {
+  // Cek dulu apakah tiketnya (token) valid jika ada
+  // (Hapus pengecekan && SECRET_KEY karena SECRET_KEY sekarang dijamin selalu ada)
+  if (token) {
     try {
       await jwtVerify(token, SECRET_KEY);
       isTokenValid = true; // Tiket asli dan belum kadaluwarsa
@@ -34,7 +35,7 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Tambahkan '/login' ke dalam daftar rute yang diawasi oleh Satpam
+// Tambahkan '/login' ke dalam daftar rute yang diawasi
 export const config = {
   matcher: ['/admin/:path*', '/login'],
 };
