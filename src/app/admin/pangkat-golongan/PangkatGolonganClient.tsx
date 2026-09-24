@@ -19,6 +19,7 @@ interface Props {
 
 type ModalMode = "tambah" | "edit" | null;
 
+
 export default function PangkatGolonganClient({ initialData }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
@@ -221,7 +222,7 @@ export default function PangkatGolonganClient({ initialData }: Props) {
                         )}
                       </td>
                       <td className="px-5 py-4">
-                        <div className="flex justify-end gap-2">
+                        {/* <div className="flex justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => openEdit(item)}
@@ -232,7 +233,7 @@ export default function PangkatGolonganClient({ initialData }: Props) {
                           <button type="button" onClick={() => openDelete(item)} className="rounded-lg border border-red-100 px-3 py-2 text-xs font-bold text-red-500 transition hover:bg-red-50">
                             Hapus
                           </button>
-                        </div>
+                        </div> */}
                       </td>
                     </tr>
                   ))
