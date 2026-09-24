@@ -1,42 +1,16 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { SignJWT } from "jose";
+// src/app/login/page.tsx
 import Link from "next/link";
-
-const SECRET_KEY = new TextEncoder().encode(process.env.JWT_SECRET || "kunci_cadangan");
+import { handleLogin } from "@/app/actions/auth"; // Sesuaikan path ini dengan folder Anda
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const params = await searchParams;
 
-  async function handleLogin(formData: FormData) {
-    "use server";
-    const username = formData.get("username");
-    const password = formData.get("password");
-
-    if (username === "admin" && password === "adminbbpvp123") {
-      const token = await new SignJWT({ role: "admin" }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("8h").sign(SECRET_KEY);
-
-      const cookieStore = await cookies();
-      cookieStore.set("admin_session", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-      });
-
-      redirect("/admin");
-    } else {
-      redirect("/login?error=1");
-    }
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#15406A] via-[#0a233f] to-[#041222] flex items-center justify-center p-4 relative overflow-hidden font-sans">
-      {/* --- DEKORASI BACKGROUND (Efek Cahaya/Blob) --- */}
+      {/* --- DEKORASI BACKGROUND --- */}
       <div className="absolute top-[-15%] left-[-10%] w-[500px] h-[500px] bg-blue-500/20 rounded-full blur-[100px] mix-blend-screen pointer-events-none"></div>
       <div className="absolute bottom-[-15%] right-[-10%] w-[600px] h-[600px] bg-amber-500/10 rounded-full blur-[120px] mix-blend-screen pointer-events-none"></div>
 
-      {/* --- CSS ANIMASI --- */}
       <style>{`
         @keyframes fadeScaleUp {
           0% { opacity: 0; transform: scale(0.95) translateY(20px); }
@@ -47,22 +21,15 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         }
       `}</style>
 
-      {/* --- KARTU LOGIN --- */}
       <div className="bg-white p-10 md:p-12 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.3)] w-full max-w-md relative z-10 animate-login-card border border-white/20">
-        {/* --- BAGIAN LOGO --- */}
         <div className="flex flex-col items-center justify-center mb-8">
           <div className="w-24 h-24 mb-4 relative flex items-center justify-center bg-gradient-to-tr from-gray-50 to-gray-100 rounded-3xl shadow-inner border border-gray-200 overflow-hidden group">
-
-
-            {/* Placeholder Ikon Logo (Hapus ini jika sudah pakai <img> asli) */}
             <img src="/logo-bbpvp-makassar.png" alt="Logo BBPVP Makassar" className="w-full h-full object-contain p-2" />
           </div>
-
           <h1 className="text-2xl font-black text-[#15406A] tracking-tight">PORTAL ADMIN</h1>
           <p className="text-sm font-bold text-amber-500 tracking-widest uppercase mt-1">BBPVP Makassar</p>
         </div>
 
-        {/* --- PESAN ERROR --- */}
         {params.error && (
           <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm mb-6 border border-red-200 font-medium text-center flex items-center justify-center space-x-2 animate-pulse">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -72,7 +39,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </div>
         )}
 
-        {/* --- FORM LOGIN --- */}
+        {/* Action disematkan langsung dari import */}
         <form action={handleLogin} className="space-y-5">
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1.5 ml-1">Username</label>
@@ -125,7 +92,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </Link>
       </div>
 
-      {/* Footer Text */}
       <div className="absolute bottom-6 text-center w-full z-10">
         <p className="text-sm font-medium text-blue-200/60">&copy; {new Date().getFullYear()} BBPVP Makassar. All rights reserved.</p>
       </div>
