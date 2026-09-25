@@ -13,6 +13,7 @@ export default async function PetaJabatanPage() {
       nama_jabatan,
       kebutuhan_ideal,
       kelas_jabatan,
+      bup, 
       created_at,
       updated_at
     FROM peta_jabatan
@@ -24,6 +25,7 @@ export default async function PetaJabatanPage() {
     nama_jabatan: String(row.nama_jabatan ?? ""),
     kebutuhan_ideal: Number(row.kebutuhan_ideal ?? 0),
     kelas_jabatan: row.kelas_jabatan === null ? null : Number(row.kelas_jabatan),
+    bup: Number(row.bup ?? 58), // Pastikan mapping kolom bup
   }));
 
   return <PetaJabatanClient initialData={data} />;

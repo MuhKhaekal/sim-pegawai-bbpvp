@@ -1,12 +1,13 @@
 import { neon } from "@neondatabase/serverless";
 import Link from "next/link";
-import TabelPegawaiClient, { Pegawai } from "./TabelPegawaiClient";
+import TabelPegawaiClient, { Pegawai, PetaJabatanBUP } from "./TabelPegawaiClient"; // Tambahkan import PangkatGolongan
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function DataPegawaiAdminPage() {
   const sql = neon(process.env.DATABASE_URL!);
+
   const rows = await sql`
     SELECT
       p.id, p.nama, p.nip, p.tempat_lahir, p.tanggal_lahir,
@@ -21,20 +22,36 @@ export default async function DataPegawaiAdminPage() {
     LEFT JOIN bidang_unit_kerja b ON b.id = p.bidang_unit_kerja_id
     ORDER BY p.nama ASC
   `;
+    const rowsJabatan = await sql`
+        SELECT id, nama_jabatan, bup FROM peta_jabatan
+      `;
+// --- MAPPING DATA BUP ---
+
 
   const data: Pegawai[] = rows.map((r) => ({
-    id: Number(r.id), nama: String(r.nama ?? ""), nip: String(r.nip ?? ""),
+    id: Number(r.id),
+    nama: String(r.nama ?? ""),
+    nip: String(r.nip ?? ""),
     tempat_lahir: r.tempat_lahir == null ? null : String(r.tempat_lahir),
     tanggal_lahir: r.tanggal_lahir == null ? null : String(r.tanggal_lahir),
     pangkat_golongan: String(r.pangkat_golongan ?? "-"),
     tmt_pangkat_terakhir: r.tmt_pangkat_terakhir == null ? null : String(r.tmt_pangkat_terakhir),
     jabatan: String(r.jabatan ?? "-"),
     tmt_jabatan_terakhir: r.tmt_jabatan_terakhir == null ? null : String(r.tmt_jabatan_terakhir),
-    bidang: String(r.bidang ?? "-"), status_kepegawaian: String(r.status_kepegawaian ?? "-"),
-    sisa_cuti_tahun_lalu: Number(r.sisa_cuti_tahun_lalu ?? 0), cuti_tahun_ini: Number(r.cuti_tahun_ini ?? 0),
+    bidang: String(r.bidang ?? "-"),
+    status_kepegawaian: String(r.status_kepegawaian ?? "-"),
+    sisa_cuti_tahun_lalu: Number(r.sisa_cuti_tahun_lalu ?? 0),
+    cuti_tahun_ini: Number(r.cuti_tahun_ini ?? 0),
   }));
 
-  return ( <div className="p-6 md:p-10 max-w-7xl mx-auto">
+  const dataPetaJabatan: PetaJabatanBUP[] = rowsJabatan.map((r) => ({
+    id: Number(r.id),
+    nama_jabatan: String(r.nama_jabatan ?? ""),
+    bup: Number(r.bup ?? 58), // Default ke 58 jika null
+  }));
+
+  return (
+    <div className="p-6 md:p-10 max-w-7xl mx-auto">
       {/* =====================================================
           HEADER
       ===================================================== */}
@@ -95,7 +112,8 @@ export default async function DataPegawaiAdminPage() {
           TABLE
       ===================================================== */}
 
-      <TabelPegawaiClient data={data} />
+      {/* --- KIRIM PROPS DATAPANGKAT KESINI --- */}
+      <TabelPegawaiClient data={data} dataPetaJabatan={dataPetaJabatan} />
     </div>
   );
 }

@@ -72,7 +72,7 @@ export default function DashboardClient({ dataPegawai, dataPetaJabatan }: Props)
     if (unitFilter !== "Semua") params.set("baseUnit", unitFilter);
     if (search.trim()) params.set("baseSearch", search.trim());
 
-    router.push(`dashboard-detail?${params.toString()}`);
+    router.push(`admin/dashboard-detail?${params.toString()}`);
   };
 
   const openDataPegawai = (filter: string) => {
@@ -396,7 +396,7 @@ export default function DashboardClient({ dataPegawai, dataPetaJabatan }: Props)
 
   /* |--- UI RENDER ---| */
   return (
-    <main className="min-h-screen bg-[#f5f7fb] text-slate-800 overflow-x-hidden">
+    <main className="min-h-screen bg-[#f5f7fb] text-slate-800 overflow-x-hidden -mx-14">
       <style jsx global>{`
         @keyframes fadeUp {
           from {
@@ -508,12 +508,7 @@ export default function DashboardClient({ dataPegawai, dataPetaJabatan }: Props)
                     </div>
                     <h1 className="mt-4 text-3xl md:text-4xl lg:text-5xl font-black tracking-tight text-white">Dashboard SDM</h1>
                     <p className="mt-2 max-w-2xl text-sm md:text-base leading-relaxed text-blue-100">Pusat analitik dan monitoring sumber daya manusia secara real-time.</p>
-                    <Link href="/login" className="group inline-flex items-center gap-2 mt-5 px-4 py-2 rounded-xl bg-white text-[#15406A] hover:bg-blue-50 shadow-lg transition-all duration-200">
-                      <span className="text-xs font-bold">Masuk sebagai Administrator</span>
-                      <svg className="w-3.5 h-3.5 transition-transform duration-200 group-hover:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                      </svg>
-                    </Link>
+
                   </div>
 
                   <div className="floating flex items-center gap-5 bg-white/[0.08] backdrop-blur-xl border border-white/10 rounded-3xl px-5 py-4 self-start lg:min-w-[250px]">

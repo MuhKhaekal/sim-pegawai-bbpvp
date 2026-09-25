@@ -919,7 +919,7 @@ export default function DashboardDetailClient({ initialData, filter, value, cate
 
         <div className="mb-6 flex flex-col md:flex-row justify-between md:items-end gap-5">
           <div className="flex items-start gap-4">
-            <Link href="/" className="mt-1 w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 hover:text-[#15406A] hover:border-blue-200 shadow-sm transition-all group">
+            <Link href="/admin" className="mt-1 w-11 h-11 rounded-2xl bg-white border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-50 hover:text-[#15406A] hover:border-blue-200 shadow-sm transition-all group">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
@@ -1246,7 +1246,7 @@ export default function DashboardDetailClient({ initialData, filter, value, cate
             Menampilkan <span className="text-slate-700">{sortedData.length}</span> dari <span className="text-slate-700">{initialData.length}</span> data pegawai
           </p>
 
-          <Link href="/" className="px-5 py-2.5 rounded-xl bg-[#15406A] text-white text-xs font-bold hover:bg-[#0f2d4a] hover:shadow-lg hover:shadow-blue-900/20 transition-all focus:ring-4 focus:ring-blue-900/10">
+          <Link href="/admin" className="px-5 py-2.5 rounded-xl bg-[#15406A] text-white text-xs font-bold hover:bg-[#0f2d4a] hover:shadow-lg hover:shadow-blue-900/20 transition-all focus:ring-4 focus:ring-blue-900/10">
             Kembali ke Dashboard Utama
           </Link>
         </div>

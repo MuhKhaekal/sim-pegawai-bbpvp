@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import PangkatGolonganClient from "./PangkatGolonganClient";
 
+export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function PangkatGolonganPage() {
@@ -10,10 +11,7 @@ export default async function PangkatGolonganPage() {
     SELECT
       id,
       status_kepegawaian,
-      pangkat_golongan,
-      masa_kerja,
-      created_at,
-      updated_at
+      pangkat_golongan
     FROM pangkat_golongan
     ORDER BY
       CASE
@@ -29,13 +27,6 @@ export default async function PangkatGolonganPage() {
     id: Number(row.id),
     status_kepegawaian: String(row.status_kepegawaian ?? ""),
     pangkat_golongan: String(row.pangkat_golongan ?? ""),
-    masa_kerja: Number(row.masa_kerja ?? 0),
-    created_at: row.created_at
-      ? String(row.created_at)
-      : null,
-    updated_at: row.updated_at
-      ? String(row.updated_at)
-      : null,
   }));
 
   return <PangkatGolonganClient initialData={data} />;

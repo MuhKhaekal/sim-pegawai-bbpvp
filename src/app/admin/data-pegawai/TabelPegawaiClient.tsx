@@ -19,6 +19,18 @@ export type Pegawai = {
   cuti_tahun_ini: number;
 };
 
+// Tipe data untuk PangkatGolongan dari master data Anda
+export type PetaJabatanBUP = {
+  id: number;
+  nama_jabatan: string;
+  bup: number; 
+};
+
+type Props = {
+  data: Pegawai[];
+  dataPetaJabatan: PetaJabatanBUP[]; // Props baru untuk menerima data dari DB
+};
+
 const URUTAN_BIDANG = [
   "Struktural",
   "Instruktur Non Kejuruan",
@@ -56,14 +68,12 @@ const URUTAN_BIDANG = [
 const DAFTAR_JABATAN = [
   "Kepala BBPVP Makassar",
   "Kabag Umum",
-
   "Instruktur Ahli Utama",
   "Instruktur Ahli Madya",
   "Instruktur Ahli Muda",
   "Instruktur Ahli Pertama",
   "Instruktur Mahir",
   "Instruktur Penyelia",
-
   "Analis Sumber Daya Manusia Aparatur Ahli Muda",
   "Analis Sumber Daya Manusia Aparatur Ahli Pertama",
   "Pengantar Kerja Ahli Madya",
@@ -79,7 +89,6 @@ const DAFTAR_JABATAN = [
   "Pranata Keuangan APBN Terampil",
   "Penelaah Teknis Kebijakan",
   "Konselor SDM",
-
   "Penata Layanan Operasional",
   "Pengelola Layanan Operasional",
   "Pengadministrasi Perkantoran",
@@ -94,23 +103,19 @@ const DAFTAR_PANGKAT = [
   "I/b: Juru Muda Tingkat I",
   "I/c: Juru",
   "I/d: Juru Tingkat I",
-
   "II/a: Pengatur Muda",
   "II/b: Pengatur Muda Tingkat I",
   "II/c: Pengatur",
   "II/d: Pengatur Tingkat I",
-
   "III/a: Penata Muda",
   "III/b: Penata Muda Tingkat I",
   "III/c: Penata",
   "III/d: Penata Tingkat I",
-
   "IV/a: Pembina",
   "IV/b: Pembina Tingkat I",
   "IV/c: Pembina Utama Muda",
   "IV/d: Pembina Utama Madya",
   "IV/e: Pembina Utama",
-
   "I",
   "IV",
   "V",
@@ -127,17 +132,14 @@ const URUTAN_GOLONGAN_PNS: Record<string, number> = {
   "IV/C": 3,
   "IV/B": 4,
   "IV/A": 5,
-
   "III/D": 6,
   "III/C": 7,
   "III/B": 8,
   "III/A": 9,
-
   "II/D": 10,
   "II/C": 11,
   "II/B": 12,
   "II/A": 13,
-
   "I/D": 14,
   "I/C": 15,
   "I/B": 16,
@@ -167,7 +169,6 @@ function getGolonganPns(pangkatGolongan: string): number {
   }
 
   const golongan = `${match[1]}/${match[2]}`;
-
   return URUTAN_GOLONGAN_PNS[golongan] ?? 999;
 }
 
@@ -204,12 +205,8 @@ function bandingkanPegawai(a: Pegawai, b: Pegawai, bidang: string): number {
   const jabatanA = normalisasiJabatan(a.jabatan);
   const jabatanB = normalisasiJabatan(b.jabatan);
 
-  // ============================================================
-  // KHUSUS BIDANG STRUKTURAL
-  // ============================================================
   if (bidang.trim().toLowerCase() === "struktural") {
     const prioritasJabatanA = URUTAN_JABATAN_STRUKTURAL[jabatanA] ?? 999;
-
     const prioritasJabatanB = URUTAN_JABATAN_STRUKTURAL[jabatanB] ?? 999;
 
     if (prioritasJabatanA !== prioritasJabatanB) {
@@ -217,15 +214,11 @@ function bandingkanPegawai(a: Pegawai, b: Pegawai, bidang: string): number {
     }
   }
 
-  // ============================================================
-  // PRIORITAS STATUS
-  // ============================================================
   const getPrioritasStatus = (status: string, jabatan: string): number => {
     if (status === "PNS") return 0;
     if (status === "PPPK") return 1;
     if (jabatan === "pramubakti") return 2;
     if (jabatan === "-") return 3;
-
     return 4;
   };
 
@@ -236,9 +229,6 @@ function bandingkanPegawai(a: Pegawai, b: Pegawai, bidang: string): number {
     return prioritasA - prioritasB;
   }
 
-  // ============================================================
-  // PNS → GOLONGAN TERTINGGI KE TERENDAH
-  // ============================================================
   if (statusA === "PNS" && statusB === "PNS") {
     const golonganA = getGolonganPns(a.pangkat_golongan);
     const golonganB = getGolonganPns(b.pangkat_golongan);
@@ -248,9 +238,6 @@ function bandingkanPegawai(a: Pegawai, b: Pegawai, bidang: string): number {
     }
   }
 
-  // ============================================================
-  // PPPK → GOLONGAN IX KE I
-  // ============================================================
   if (statusA === "PPPK" && statusB === "PPPK") {
     const golonganA = getGolonganPppk(a.pangkat_golongan);
     const golonganB = getGolonganPppk(b.pangkat_golongan);
@@ -260,12 +247,7 @@ function bandingkanPegawai(a: Pegawai, b: Pegawai, bidang: string): number {
     }
   }
 
-  // ============================================================
-  // TERAKHIR → NAMA
-  // ============================================================
-  return a.nama.localeCompare(b.nama, "id", {
-    sensitivity: "base",
-  });
+  return a.nama.localeCompare(b.nama, "id", { sensitivity: "base" });
 }
 
 function formatTanggal(dateString: string | null) {
@@ -274,8 +256,17 @@ function formatTanggal(dateString: string | null) {
   return new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" }).format(date);
 }
 
-// FUNGSI KALKULASI MASA PENSIUN
-function hitungMasaPensiun(tanggalLahir: string | null, jabatan: string, _status: string) {
+// ============================================================
+// FUNGSI KALKULASI MASA PENSIUN (DINAMIS DARI DB)
+// ============================================================
+// ============================================================
+// FUNGSI KALKULASI MASA PENSIUN (DINAMIS DARI DB + FALLBACK)
+// ============================================================
+function hitungMasaPensiun(
+  tanggalLahir: string | null,
+  jabatan: string,
+  dataPetaJabatan: PetaJabatanBUP[] // Menerima data jabatan dari DB
+) {
   if (!tanggalLahir) {
     return {
       batasUmur: 0,
@@ -285,20 +276,27 @@ function hitungMasaPensiun(tanggalLahir: string | null, jabatan: string, _status
     };
   }
 
-  const namaJabatan = jabatan.trim().toLowerCase();
+  let batasUmur = 58; // Default BUP BKN
+  const jabatanLower = jabatan.trim().toLowerCase();
 
-  let batasUmur = 58;
+  // 1. Cari data BUP berdasarkan nama jabatan dari database
+  const matchedJabatan = dataPetaJabatan.find(
+    (j) => j.nama_jabatan.trim().toLowerCase() === jabatanLower
+  );
 
-  /*
-   * BUP:
-   * - Instruktur Ahli Utama = 65 tahun
-   * - Instruktur + Ahli selain Utama = 60 tahun
-   * - Selain itu = 58 tahun
-   */
-  if (namaJabatan === "instruktur ahli utama") {
-    batasUmur = 65;
-  } else if (namaJabatan.includes("instruktur") && namaJabatan.includes("ahli")) {
-    batasUmur = 60;
+  // 2. Terapkan nilai BUP jika ditemukan
+  if (matchedJabatan && matchedJabatan.bup > 0) {
+    batasUmur = matchedJabatan.bup;
+  }
+
+  // 3. FALLBACK PENGAMAN: Jika jabatan tidak match, atau di DB BUP-nya masih 
+  // tersetting default 58 / 0 (belum Anda update via CRUD), kita gunakan deteksi kata kunci.
+  if (!matchedJabatan || batasUmur === 58 || batasUmur === 0) {
+    if (jabatanLower.includes("utama") || jabatanLower === "kepala bbpvp makassar") {
+      batasUmur = 65; // Ahli Utama / Kepala
+    } else if (jabatanLower.includes("madya") || (jabatanLower.includes("instruktur") && jabatanLower.includes("ahli"))) {
+      batasUmur = 60; // Ahli Madya / Semua Instruktur Ahli (Pertama, Muda, Madya)
+    }
   }
 
   const tglLahirDate = new Date(tanggalLahir);
@@ -313,7 +311,6 @@ function hitungMasaPensiun(tanggalLahir: string | null, jabatan: string, _status
   }
 
   const tglPensiun = new Date(tglLahirDate.getFullYear() + batasUmur, tglLahirDate.getMonth(), tglLahirDate.getDate());
-
   const now = new Date();
 
   let diffMonths = (tglPensiun.getFullYear() - now.getFullYear()) * 12 + (tglPensiun.getMonth() - now.getMonth());
@@ -335,51 +332,31 @@ function hitungMasaPensiun(tanggalLahir: string | null, jabatan: string, _status
   const sisaBulan = diffMonths % 12;
 
   let sisaTeks = "";
-
-  if (sisaTahun > 0) {
-    sisaTeks += `${sisaTahun} Thn `;
-  }
-
-  if (sisaBulan > 0) {
-    sisaTeks += `${sisaBulan} Bln`;
-  }
-
-  if (sisaTeks === "") {
-    sisaTeks = "< 1 Bln";
-  }
+  if (sisaTahun > 0) sisaTeks += `${sisaTahun} Thn `;
+  if (sisaBulan > 0) sisaTeks += `${sisaBulan} Bln`;
+  if (sisaTeks === "") sisaTeks = "< 1 Bln";
 
   const warna = sisaTahun < 1 ? "bg-orange-100 text-orange-700 border-orange-200" : "bg-emerald-50 text-emerald-700 border-emerald-200";
 
-  return {
-    batasUmur,
-    sisaTeks: sisaTeks.trim(),
-    isPensiun: false,
-    warna,
-  };
+  return { batasUmur, sisaTeks: sisaTeks.trim(), isPensiun: false, warna };
 }
 
-export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
+export default function TabelPegawaiClient({ data, dataPetaJabatan }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
 
-  // FILTER
   const [filterBidang, setFilterBidang] = useState("");
   const [filterJabatan, setFilterJabatan] = useState("");
   const [filterPangkat, setFilterPangkat] = useState("");
 
-  // MODAL HAPUS
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [pegawaiToDelete, setPegawaiToDelete] = useState<Pegawai | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredData = data.filter((p) => {
     const keyword = searchTerm.toLowerCase();
-
     const cocokPencarian = p.nama.toLowerCase().includes(keyword) || p.nip.toLowerCase().includes(keyword) || p.jabatan.toLowerCase().includes(keyword);
-
     const cocokBidang = filterBidang === "" || p.bidang.replace("-- ", "") === filterBidang;
-
     const cocokJabatan = filterJabatan === "" || p.jabatan === filterJabatan;
-
     const cocokPangkat = filterPangkat === "" || p.pangkat_golongan === filterPangkat;
 
     return cocokPencarian && cocokBidang && cocokJabatan && cocokPangkat;
@@ -389,7 +366,6 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
 
   filteredData.forEach((p) => {
     let bidang = p.bidang;
-
     if (bidang.includes("--")) {
       bidang = bidang.replace("-- ", "");
     }
@@ -397,11 +373,9 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
     if (!groupedData[bidang]) {
       groupedData[bidang] = [];
     }
-
     groupedData[bidang].push(p);
   });
 
-  // Sorting pegawai di dalam masing-masing bidang
   Object.keys(groupedData).forEach((bidang) => {
     groupedData[bidang].sort((a, b) => bandingkanPegawai(a, b, bidang));
   });
@@ -423,7 +397,6 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
 
   return (
     <>
-      {/* MODAL KONFIRMASI HAPUS */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl p-6 md:p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
@@ -448,18 +421,15 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
         </div>
       )}
 
-      {/* TABEL UTAMA */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="p-5 border-b border-gray-100 bg-white md:flex-row justify-between items-center gap-4">
           <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
-            {/* SEARCH */}
             <div className="relative w-full md:w-full">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </div>
-
               <input
                 type="text"
                 placeholder="Cari nama, NIP, atau jabatan..."
@@ -469,14 +439,12 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
               />
             </div>
 
-            {/* FILTER BIDANG */}
             <select
               value={filterBidang}
               onChange={(e) => setFilterBidang(e.target.value)}
               className="bg-gray-50 border border-gray-200 text-gray-700 rounded-lg px-3 py-2 text-sm focus:bg-white focus:outline-none focus:border-[#15406A] focus:ring-2 focus:ring-blue-100 transition-all md:w-[220px]"
             >
               <option value="">Semua Bidang / Unit Kerja</option>
-
               {URUTAN_BIDANG.map((bidang) => (
                 <option key={bidang} value={bidang}>
                   {bidang}
@@ -484,14 +452,12 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
               ))}
             </select>
 
-            {/* FILTER JABATAN */}
             <select
               value={filterJabatan}
               onChange={(e) => setFilterJabatan(e.target.value)}
               className="bg-gray-50 border border-gray-200 text-gray-700 rounded-lg px-3 py-2 text-sm focus:bg-white focus:outline-none focus:border-[#15406A] focus:ring-2 focus:ring-blue-100 transition-all md:w-[220px]"
             >
               <option value="">Semua Jabatan</option>
-
               {DAFTAR_JABATAN.map((jabatan) => (
                 <option key={jabatan} value={jabatan}>
                   {jabatan}
@@ -499,14 +465,12 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
               ))}
             </select>
 
-            {/* FILTER PANGKAT */}
             <select
               value={filterPangkat}
               onChange={(e) => setFilterPangkat(e.target.value)}
               className="bg-gray-50 border border-gray-200 text-gray-700 rounded-lg px-3 py-2 text-sm focus:bg-white focus:outline-none focus:border-[#15406A] focus:ring-2 focus:ring-blue-100 transition-all md:w-[210px]"
             >
               <option value="">Semua Pangkat / Golongan</option>
-
               {DAFTAR_PANGKAT.map((pangkat) => (
                 <option key={pangkat} value={pangkat}>
                   {pangkat}
@@ -514,7 +478,6 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
               ))}
             </select>
 
-            {/* RESET FILTER */}
             {(filterBidang || filterJabatan || filterPangkat || searchTerm) && (
               <button
                 type="button"
@@ -549,7 +512,6 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
             <tbody className="bg-white">
               {sortedBidangKeys.length === 0 ? (
                 <tr>
-                  {/* Kolom diperbarui menjadi 6 karena ada tambahan kolom Cuti */}
                   <td colSpan={6} className="text-center py-10 text-sm text-gray-500">
                     Data tidak ditemukan.
                   </td>
@@ -558,7 +520,6 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
                 sortedBidangKeys.map((bidang) => (
                   <React.Fragment key={bidang}>
                     <tr className="bg-[#f4f7fa] border-y border-gray-200">
-                      {/* Kolom diperbarui menjadi 6 */}
                       <td colSpan={6} className="px-4 py-2">
                         <div className="flex items-center space-x-2">
                           <span className="w-4 h-4 rounded bg-[#15406A] text-white flex items-center justify-center">
@@ -577,14 +538,15 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
                     </tr>
 
                     {groupedData[bidang].map((p: Pegawai, index: number) => {
-                      const pensiun = hitungMasaPensiun(p.tanggal_lahir, p.jabatan, p.status_kepegawaian);
+                      // PENYESUAIAN PEMANGGILAN FUNGSI MASA PENSIUN (DENGAN DATA DB)
+                      const pensiun = hitungMasaPensiun(p.tanggal_lahir, p.jabatan, dataPetaJabatan);
+                      
                       const sisaLalu = p.sisa_cuti_tahun_lalu || 0;
                       const tahunIni = p.cuti_tahun_ini || 0;
                       const totalCuti = sisaLalu + tahunIni;
 
                       return (
                         <tr key={p.id} className={`group border-b border-gray-100 hover:bg-blue-50/40 transition-colors ${index % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
-                          {/* KOLOM 1: IDENTITAS */}
                           <td className="px-4 py-2.5 align-top">
                             <Link
                               href={`/admin/data-pegawai/${p.id}`}
@@ -597,7 +559,6 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
                             </Link>
                           </td>
 
-                          {/* KOLOM 2: PANGKAT & JABATAN */}
                           <td className="px-4 py-2.5 align-top">
                             <div className="flex flex-col leading-tight space-y-1.5">
                               <div>
@@ -611,7 +572,6 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
                             </div>
                           </td>
 
-                          {/* KOLOM 3: TTL & STATUS */}
                           <td className="px-4 py-2.5 align-top">
                             <div className="flex flex-col leading-tight space-y-1.5">
                               <div>
@@ -635,7 +595,6 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
                             </div>
                           </td>
 
-                          {/* KOLOM 4: INFORMASI CUTI (FITUR BARU) */}
                           <td className="px-4 py-2.5 align-top text-center">
                             <div className="flex flex-col items-center justify-center space-y-1.5 h-full">
                               <div className="text-[10px] font-medium text-gray-500 flex items-center space-x-2">
@@ -656,7 +615,6 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
                             </div>
                           </td>
 
-                          {/* KOLOM 5: MASA PENSIUN */}
                           <td className="px-4 py-2.5 align-top text-center">
                             <div className="flex flex-col items-center justify-center h-full space-y-1">
                               <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Batas: {pensiun.batasUmur} Thn</span>
@@ -664,7 +622,6 @@ export default function TabelPegawaiClient({ data }: { data: Pegawai[] }) {
                             </div>
                           </td>
 
-                          {/* KOLOM 6: AKSI */}
                           <td className="px-4 py-2.5 align-middle text-right">
                             <div className="flex justify-end gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-200">
                               <Link href={`/admin/edit-pegawai/${p.id}`} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white rounded border border-blue-100 transition-colors tooltip" title="Edit Data">

@@ -21,10 +21,12 @@ export async function tambahPetaJabatan(formData: FormData) {
 
   const namaJabatan = getName(formData.get("nama_jabatan"));
   const kebutuhanIdeal = parsePositiveInt(formData.get("kebutuhan_ideal"));
-
+  
   const kelasJabatanValue = getName(formData.get("kelas_jabatan"));
-
   const kelasJabatan = kelasJabatanValue === "" ? null : parsePositiveInt(formData.get("kelas_jabatan"), 0);
+
+  // Ambil nilai BUP, set default ke 58 jika kosong
+  const bup = parsePositiveInt(formData.get("bup"), 58); 
 
   if (!namaJabatan) {
     return {
@@ -52,12 +54,14 @@ export async function tambahPetaJabatan(formData: FormData) {
     INSERT INTO peta_jabatan (
       nama_jabatan,
       kebutuhan_ideal,
-      kelas_jabatan
+      kelas_jabatan,
+      bup
     )
     VALUES (
       ${namaJabatan},
       ${kebutuhanIdeal},
-      ${kelasJabatan}
+      ${kelasJabatan},
+      ${bup}
     )
   `;
 
@@ -78,6 +82,9 @@ export async function updatePetaJabatan(formData: FormData) {
   const kebutuhanIdeal = parsePositiveInt(formData.get("kebutuhan_ideal"));
   const kelasJabatanValue = getName(formData.get("kelas_jabatan"));
   const kelasJabatan = kelasJabatanValue === "" ? null : parsePositiveInt(formData.get("kelas_jabatan"), 0);
+  
+  // Ambil nilai BUP, set default ke 58 jika kosong
+  const bup = parsePositiveInt(formData.get("bup"), 58); 
 
   if (!id || !namaJabatan) {
     throw new Error("Data jabatan tidak lengkap.");
@@ -101,6 +108,7 @@ export async function updatePetaJabatan(formData: FormData) {
       nama_jabatan = ${namaJabatan},
       kebutuhan_ideal = ${kebutuhanIdeal},
       kelas_jabatan = ${kelasJabatan},
+      bup = ${bup},
       updated_at = CURRENT_TIMESTAMP
     WHERE id = ${id}
   `;
@@ -111,7 +119,7 @@ export async function updatePetaJabatan(formData: FormData) {
 
   return {
     success: true,
-    message: "Jabatan berhasil ditambahkan.",
+    message: "Jabatan berhasil diperbarui.", // Pesan diperbaiki
   };
 }
 
@@ -129,11 +137,19 @@ export async function hapusPetaJabatan(formData: FormData) {
     revalidatePath("/admin/tambah-pegawai");
     revalidatePath("/admin/data-pegawai");
     return { success: true, message: "Jabatan berhasil dihapus." };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Gagal menghapus jabatan:", error);
-    if (error?.code === "23503") {
+    
+    // Pengecekan tipe yang aman (Type Guard) menggantikan 'any'
+    if (
+      typeof error === "object" && 
+      error !== null && 
+      "code" in error && 
+      (error as Record<string, unknown>).code === "23503"
+    ) {
       return { success: false, message: "Jabatan masih digunakan oleh pegawai dan tidak dapat dihapus." };
     }
+    
     return { success: false, message: "Gagal menghapus jabatan." };
   }
 }

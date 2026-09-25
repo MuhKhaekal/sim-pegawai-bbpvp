@@ -1,384 +1,294 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { tambahPangkatGolongan, updatePangkatGolongan, hapusPangkatGolongan } from "./actions";
+import { hapusPangkatGolongan, tambahPangkatGolongan, updatePangkatGolongan } from "./actions";
 
-type PangkatGolongan = {
+export type PangkatGolongan = {
   id: number;
   status_kepegawaian: string;
   pangkat_golongan: string;
-  masa_kerja: number;
-  created_at: string | null;
-  updated_at: string | null;
 };
 
-interface Props {
-  initialData: PangkatGolongan[];
-}
+type ModalMode = "tambah" | "edit" | "hapus" | null;
 
-type ModalMode = "tambah" | "edit" | null;
+const inputClass = "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-[#15406A] focus:ring-4 focus:ring-[#15406A]/10";
 
-export default function PangkatGolonganClient({ initialData }: Props) {
-  const router = useRouter();
+export default function PangkatGolonganClient({ initialData }: { initialData: PangkatGolongan[] }) {
   const [search, setSearch] = useState("");
-  const [modalMode, setModalMode] = useState<ModalMode>(null);
-
-  const [selectedData, setSelectedData] = useState<PangkatGolongan | null>(null);
-
-  const [statusKepegawaian, setStatusKepegawaian] = useState("PNS");
-
-  const [pangkatGolongan, setPangkatGolongan] = useState("");
-
-  const [masaKerja, setMasaKerja] = useState("");
-
-  const [isLoading, setIsLoading] = useState(false);
-
-  const [message, setMessage] = useState<{
-    type: "success" | "error";
-    text: string;
-  } | null>(null);
+  const [modal, setModal] = useState<ModalMode>(null);
+  const [selected, setSelected] = useState<PangkatGolongan | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   const filteredData = useMemo(() => {
-    const keyword = search.toLowerCase().trim();
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) return initialData;
 
-    if (!keyword) {
-      return initialData;
-    }
-
-    return initialData.filter((item) => [item.status_kepegawaian, item.pangkat_golongan, String(item.masa_kerja)].join(" ").toLowerCase().includes(keyword));
+    return initialData.filter((item) =>
+      `${item.status_kepegawaian} ${item.pangkat_golongan}`.toLowerCase().includes(keyword)
+    );
   }, [initialData, search]);
 
-  const resetForm = () => {
-    setStatusKepegawaian("PNS");
-    setPangkatGolongan("");
-    setMasaKerja("");
-    setSelectedData(null);
-  };
+  function openAdd() {
+    setSelected(null);
+    setError("");
+    setModal("tambah");
+  }
 
-  const bukaTambah = () => {
-    resetForm();
-    setModalMode("tambah");
-    setMessage(null);
-  };
+  function openEdit(item: PangkatGolongan) {
+    setSelected(item);
+    setError("");
+    setModal("edit");
+  }
 
-  const bukaEdit = (item: PangkatGolongan) => {
-    setSelectedData(item);
-    setStatusKepegawaian(item.status_kepegawaian);
-    setPangkatGolongan(item.pangkat_golongan);
-    setMasaKerja(String(item.masa_kerja));
-    setModalMode("edit");
-    setMessage(null);
-  };
+  function openDelete(item: PangkatGolongan) {
+    setSelected(item);
+    setError("");
+    setModal("hapus");
+  }
 
-  const tutupModal = () => {
-    if (isLoading) return;
+  function closeModal() {
+    if (isSubmitting) return;
+    setModal(null);
+    setSelected(null);
+    setError("");
+  }
 
-    setModalMode(null);
-    resetForm();
-  };
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    setIsLoading(true);
-    setMessage(null);
+  async function handleSubmit(formData: FormData) {
+    setIsSubmitting(true);
+    setError("");
 
     try {
-      const formData = new FormData();
-
-      if (modalMode === "edit" && selectedData) {
-        formData.append("id", String(selectedData.id));
+      if (modal === "tambah") {
+        await tambahPangkatGolongan(formData);
+      } else if (modal === "edit") {
+        await updatePangkatGolongan(formData);
+      } else if (modal === "hapus") {
+        await hapusPangkatGolongan(formData);
       }
-
-      formData.append("status_kepegawaian", statusKepegawaian);
-
-      formData.append("pangkat_golongan", pangkatGolongan);
-
-      formData.append("masa_kerja", masaKerja);
-
-      const result = modalMode === "edit" ? await updatePangkatGolongan(formData) : await tambahPangkatGolongan(formData);
-
-      setMessage({
-        type: result.success ? "success" : "error",
-        text: result.message,
-      });
-
-      if (result.success) {
-        setMessage({
-          type: "success",
-          text: result.message,
-        });
-        setModalMode(null);
-        resetForm();
-      }
-    } catch {
-      setMessage({
-        type: "error",
-        text: "Terjadi kesalahan saat menyimpan data.",
-      });
+      closeModal();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Terjadi kesalahan.");
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
-  };
-
-  const handleDelete = async (item: PangkatGolongan) => {
-    const confirmed = window.confirm(`Hapus data "${item.pangkat_golongan}" untuk status "${item.status_kepegawaian}"?`);
-
-    if (!confirmed) return;
-
-    setIsLoading(true);
-    setMessage(null);
-
-    try {
-      const result = await hapusPangkatGolongan(item.id);
-
-      setMessage({
-        type: result.success ? "success" : "error",
-        text: result.message,
-      });
-
-      if (result.success) {
-        setMessage({
-          type: "success",
-          text: result.message,
-        });
-      }
-    } catch {
-      setMessage({
-        type: "error",
-        text: "Terjadi kesalahan saat menghapus data.",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }
 
   return (
-    <div className="min-h-full bg-slate-50/60 p-4 md:p-6 lg:p-10">
-      <div className="mx-auto max-w-7xl space-y-6">
-        {/* HEADER */}
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-800 md:text-3xl">Pangkat dan Golongan</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">Kelola jabatan fungsional dan pelaksana beserta kebutuhan ideal dan kelas jabatannya.</p>
+    <div className="p-6 md:p-10 max-w-7xl mx-auto">
+      {/* =====================================================
+          HEADER 
+      ===================================================== */}
+      <div className="animate-fade-up flex flex-col lg:flex-row lg:justify-between lg:items-end gap-5 mb-6">
+        <div>
+          <div className="inline-flex items-center space-x-2 bg-amber-100/50 text-amber-500 px-3 py-1 rounded-full mb-2 lg:mb-3 text-[10px] lg:text-xs font-black tracking-widest uppercase border border-amber-200">
+            <span>Database</span>
           </div>
+          <h1 className="text-3xl lg:text-4xl font-black text-[#15406A] tracking-tight">Pangkat & Golongan</h1>
+          <p className="text-gray-500 mt-1 lg:mt-2 font-medium text-sm lg:text-base">
+            Kelola master data pangkat, golongan, dan status kepegawaian institusi.
+          </p>
+        </div>
 
-          <button type="button" onClick={bukaTambah} className="rounded-xl bg-[#15406A] px-5 py-3 text-sm font-bold text-white shadow-lg transition hover:bg-[#103653] active:scale-[0.98]">
-            + Tambah Data
+        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+          <button
+            type="button"
+            onClick={openAdd}
+            className="inline-flex items-center justify-center gap-2 bg-[#15406A] hover:bg-blue-900 text-white px-5 py-3 lg:px-6 rounded-xl font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all text-sm lg:text-base w-full sm:w-auto"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Input Data Baru</span>
           </button>
-        </div>
-
-        {/* ALERT */}
-        {message && <div className={`rounded-xl border px-4 py-3 text-sm font-semibold ${message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>{message.text}</div>}
-
-        <div className="grid gap-4 sm:grid-cols-4">
-          <StatCard label="Total Data" value={initialData.length} />
-
-          <StatCard label="Kelas PNS" value={initialData.filter((item) => item.status_kepegawaian.toLowerCase() === "pns").length} />
-          <StatCard label="Kelas PPPK" value={initialData.filter((item) => item.status_kepegawaian.toLowerCase() === "pppk").length} />
-          <StatCard label="Kelas NON ASN" value={initialData.filter((item) => item.status_kepegawaian.toLowerCase() === "non asn").length} />
-        </div>
-
-        <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-100 p-4 md:flex-row md:items-center md:justify-end md:p-5">
-            <div className="relative w-full md:w-80">
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Cari nama jabatan..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pl-10 text-sm outline-none transition focus:border-[#15406A] focus:bg-white focus:ring-4 focus:ring-[#15406A]/10"
-              />
-              <svg className="absolute left-3 top-3 h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m21 21-4.35-4.35m1.35-5.65a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z" />
-              </svg>
-            </div>
-          </div>
-
-          <div className="overflox-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-5 py-4 text-left font-bold">No</th>
-                  <th className="px-5 py-4 text-left font-bold">Status Kepegawaian</th>
-                  <th className="px-5 py-4 text-left font-bold">Pangkat/Golongan</th>
-                  <th className="px-5 py-4 text-left font-bold">Masa Kerja</th>
-                  <th className="px-5 py-4 text-left font-bold">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredData.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-sm text-slate-400">
-                      {search ? "Tidak ada jabatan yang sesuai pencarian." : "Belum ada data peta jabatan."}
-                    </td>
-                  </tr>
-                ) : (
-                  filteredData.map((item, index) => (
-                    <tr key={item.id} className="transition hover:bg-slate-50/80">
-                      <td className="px-5 py-4 text-slate-400">{index + 1}</td>
-                      <td className="px-5 py-4 font-semibold text-slate-700">{item.status_kepegawaian}</td>
-                      <td className="px-5 py-4 text-center font-bold text-[#15406A]">{item.pangkat_golongan}</td>
-                      <td className="px-5 py-4 text-center">
-                        {item.masa_kerja === null ? <span className="text-slate-400">—</span> : <span className="inline-flex min-w-10 justify-center rounded-lg bg-[#15406A]/10 px-2.5 py-1 font-bold text-[#15406A]">{item.masa_kerja}</span>}
-                      </td>
-                      <td className="px-5 py-4">
-                        {/* <div className="flex justify-end gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openEdit(item)}
-                            className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-[#15406A]/30 hover:bg-[#15406A]/5 hover:text-[#15406A]"
-                          >
-                            Edit
-                          </button>
-                          <button type="button" onClick={() => openDelete(item)} className="rounded-lg border border-red-100 px-3 py-2 text-xs font-bold text-red-500 transition hover:bg-red-50">
-                            Hapus
-                          </button>
-                        </div> */}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {/* TABLE */}
-        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          {/* SEARCH */}
-
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                  <th className="px-5 py-4 font-black text-slate-500">No</th>
-
-                  <th className="px-5 py-4 font-black text-slate-500">Status Kepegawaian</th>
-
-                  <th className="px-5 py-4 font-black text-slate-500">Pangkat/Golongan</th>
-
-                  <th className="px-5 py-4 font-black text-slate-500">Masa Kerja</th>
-
-                  <th className="px-5 py-4 text-right font-black text-slate-500">Aksi</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {filteredData.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-5 py-12 text-center text-sm font-medium text-slate-400">
-                      Tidak ada data ditemukan.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredData.map((item, index) => (
-                    <tr key={item.id} className="border-b border-slate-100 transition hover:bg-slate-50">
-                      <td className="px-5 py-4 font-bold text-slate-400">{index + 1}</td>
-
-                      <td className="px-5 py-4">
-                        <span className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-black text-[#15406A]">{item.status_kepegawaian}</span>
-                      </td>
-
-                      <td className="px-5 py-4 font-bold text-slate-700">{item.pangkat_golongan}</td>
-
-                      <td className="px-5 py-4 font-semibold text-slate-600">{item.masa_kerja} tahun</td>
-
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end gap-2">
-                          <button type="button" onClick={() => bukaEdit(item)} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-[#15406A] transition hover:bg-blue-100">
-                            Edit
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(item)}
-                            disabled={isLoading}
-                            className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
-                          >
-                            Hapus
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
         </div>
       </div>
 
-      {/* MODAL */}
-      {modalMode && (
-        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
-            <div className="border-b border-slate-200 px-6 py-5">
-              <h2 className="text-xl font-black text-[#15406A]">{modalMode === "edit" ? "Edit Pangkat/Golongan" : "Tambah Pangkat/Golongan"}</h2>
+      {/* =====================================================
+          STAT CARDS
+      ===================================================== */}
+      <div className="grid gap-4 sm:grid-cols-4 mb-6">
+        <StatCard label="Total Data" value={initialData.length} />
+        <StatCard label="Kelas PNS" value={initialData.filter((item) => item.status_kepegawaian.toLowerCase() === "pns").length} />
+        <StatCard label="Kelas PPPK" value={initialData.filter((item) => item.status_kepegawaian.toLowerCase() === "pppk").length} />
+        <StatCard label="Kelas NON ASN" value={initialData.filter((item) => item.status_kepegawaian.toLowerCase() === "non asn" || item.status_kepegawaian.toLowerCase() === "non-asn").length} />
+      </div>
 
-              <p className="mt-1 text-sm text-slate-500">Lengkapi informasi master pangkat/golongan.</p>
+      {/* =====================================================
+          TABLE 
+      ===================================================== */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        {/* TABEL HEADER / FILTER */}
+        <div className="p-5 border-b border-gray-100 bg-white md:flex-row justify-between items-center gap-4">
+          <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+            <div className="relative w-full md:w-80">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Cari pangkat, golongan, status..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg pl-9 pr-3 py-2 text-sm focus:bg-white focus:outline-none focus:border-[#15406A] focus:ring-2 focus:ring-blue-100 transition-all"
+              />
             </div>
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="px-3 py-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 transition-colors whitespace-nowrap"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5 p-6">
-              {/* STATUS */}
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">Status Kepegawaian</label>
+        {/* TABEL KONTEN */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider w-16 text-center">No</th>
+                <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">Status Kepegawaian</th>
+                <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Pangkat / Golongan</th>
+                <th className="px-4 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white">
+              {filteredData.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="text-center py-10 text-sm text-gray-500">
+                    {search ? "Tidak ada pangkat yang sesuai pencarian." : "Belum ada data pangkat/golongan."}
+                  </td>
+                </tr>
+              ) : (
+                filteredData.map((item, index) => (
+                  <tr key={item.id} className={`group border-b border-gray-100 hover:bg-blue-50/40 transition-colors ${index % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
+                    <td className="px-4 py-3 align-middle text-center text-sm font-bold text-gray-400">{index + 1}</td>
+                    
+                    <td className="px-4 py-3 align-middle text-center">
+                      <span className="inline-flex justify-center rounded-lg bg-[#15406A]/10 px-3 py-1.5 text-xs font-black text-[#15406A] uppercase tracking-wider">
+                        {item.status_kepegawaian}
+                      </span>
+                    </td>
 
-                <select
-                  value={statusKepegawaian}
-                  onChange={(e) => setStatusKepegawaian(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:border-[#15406A] focus:ring-2 focus:ring-[#15406A]/10"
-                >
-                  <option value="PNS">PNS</option>
-                  <option value="PPPK">PPPK</option>
-                  <option value="NON-ASN">NON-ASN</option>
-                </select>
-              </div>
+                    <td className="px-4 py-3 align-middle">
+                      <span className="text-sm font-bold text-gray-900 group-hover:text-[#15406A] transition-colors">{item.pangkat_golongan}</span>
+                    </td>
 
-              {/* PANGKAT */}
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">Pangkat & Golongan</label>
+                    <td className="px-4 py-3 align-middle text-right">
+                      <div className="flex justify-end gap-1.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity duration-200">
+                        <button
+                          onClick={() => openEdit(item)}
+                          className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-600 hover:text-white rounded border border-blue-100 transition-colors tooltip"
+                          title="Edit Data"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => openDelete(item)}
+                          className="p-1.5 text-red-600 bg-red-50 hover:bg-red-600 hover:text-white rounded border border-red-100 transition-colors tooltip"
+                          title="Hapus Data"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-                <input
-                  type="text"
-                  value={pangkatGolongan}
-                  onChange={(e) => setPangkatGolongan(e.target.value)}
-                  placeholder="Contoh: III/c - Penata"
-                  required
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:border-[#15406A] focus:ring-2 focus:ring-[#15406A]/10"
-                />
-              </div>
-
-              {/* MASA KERJA */}
-              <div>
-                <label className="mb-2 block text-sm font-bold text-slate-700">Masa Kerja</label>
-
-                <div className="relative">
-                  <input
-                    type="number"
-                    min={0}
-                    value={masaKerja}
-                    onChange={(e) => setMasaKerja(e.target.value)}
-                    placeholder="Contoh: 8"
-                    required
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 pr-20 text-sm font-medium outline-none focus:border-[#15406A] focus:ring-2 focus:ring-[#15406A]/10"
-                  />
-
-                  <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">tahun</span>
+      {/* =====================================================
+          MODAL (EDIT / TAMBAH / HAPUS)
+      ===================================================== */}
+      {modal && (
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm" onMouseDown={closeModal}>
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl animate-in zoom-in-95 duration-200" onMouseDown={(event) => event.stopPropagation()}>
+            {modal === "hapus" ? (
+              <form action={handleSubmit}>
+                <input type="hidden" name="id" value={selected?.id ?? ""} />
+                <div className="p-6 md:p-8">
+                  <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full">
+                    <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-bold text-center text-gray-900 mb-2">Hapus Pangkat/Golongan?</h3>
+                  <p className="text-center text-gray-500 mb-6 text-sm">
+                    Anda yakin ingin menghapus <strong>{selected?.pangkat_golongan}</strong> untuk <strong>{selected?.status_kepegawaian}</strong>?
+                  </p>
+                  {error && <ErrorMessage message={error} />}
+                  <div className="flex gap-3">
+                    <button type="button" onClick={closeModal} disabled={isSubmitting} className="w-1/2 px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50">
+                      Batal
+                    </button>
+                    <button type="submit" disabled={isSubmitting} className="w-1/2 px-4 py-2 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transition-colors flex justify-center items-center disabled:opacity-50">
+                      {isSubmitting ? "Memproses..." : "Ya, Hapus"}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </form>
+            ) : (
+              <form action={handleSubmit}>
+                {modal === "edit" && <input type="hidden" name="id" value={selected?.id ?? ""} />}
+                <div className="p-6 md:p-8">
+                  <div className="mb-6 border-b border-gray-100 pb-4">
+                    <h3 className="text-xl font-bold text-[#15406A]">{modal === "edit" ? "Edit Pangkat & Golongan" : "Tambah Pangkat & Golongan"}</h3>
+                    <p className="text-sm text-gray-500 mt-1">Lengkapi informasi master data institusi.</p>
+                  </div>
 
-              {/* BUTTON */}
-              <div className="flex justify-end gap-3 border-t border-slate-100 pt-5">
-                <button type="button" onClick={tutupModal} disabled={isLoading} className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-600 transition hover:bg-slate-50">
-                  Batal
-                </button>
+                  <div className="space-y-4 mb-6">
+                    <div>
+                      <label className="mb-1.5 block text-sm font-bold text-gray-700">Status Kepegawaian</label>
+                      <select
+                        name="status_kepegawaian"
+                        required
+                        defaultValue={selected?.status_kepegawaian ?? "PNS"}
+                        className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-4 py-2.5 text-sm focus:bg-white focus:outline-none focus:border-[#15406A] focus:ring-2 focus:ring-blue-100 transition-all appearance-none cursor-pointer"
+                      >
+                        <option value="PNS">PNS</option>
+                        <option value="PPPK">PPPK</option>
+                        <option value="NON-ASN">NON-ASN</option>
+                      </select>
+                    </div>
 
-                <button type="submit" disabled={isLoading} className="rounded-xl bg-[#15406A] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#103653] disabled:cursor-not-allowed disabled:opacity-60">
-                  {isLoading ? "Menyimpan..." : modalMode === "edit" ? "Simpan Perubahan" : "Simpan Data"}
-                </button>
-              </div>
-            </form>
+                    <div>
+                      <label className="mb-1.5 block text-sm font-bold text-gray-700">Pangkat & Golongan</label>
+                      <input
+                        name="pangkat_golongan"
+                        required
+                        defaultValue={selected?.pangkat_golongan ?? ""}
+                        className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-lg px-4 py-2.5 text-sm focus:bg-white focus:outline-none focus:border-[#15406A] focus:ring-2 focus:ring-blue-100 transition-all"
+                        placeholder="Contoh: III/c - Penata"
+                      />
+                    </div>
+                  </div>
+
+                  {error && <ErrorMessage message={error} />}
+
+                  <div className="flex gap-3">
+                    <button type="button" onClick={closeModal} disabled={isSubmitting} className="w-1/2 px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-xl hover:bg-gray-200 transition-colors disabled:opacity-50">
+                      Batal
+                    </button>
+                    <button type="submit" disabled={isSubmitting} className="w-1/2 px-4 py-2 bg-[#15406A] hover:bg-[#103554] text-white font-semibold rounded-xl transition-colors flex justify-center items-center disabled:opacity-50">
+                      {isSubmitting ? "Memproses..." : (modal === "edit" ? "Simpan Perubahan" : "Simpan Data")}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -386,11 +296,18 @@ export default function PangkatGolonganClient({ initialData }: Props) {
   );
 }
 
+// =====================================================
+// KOMPONEN PELENGKAP
+// =====================================================
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col">
       <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</p>
-      <p className="mt-2 text-2xl font-extrabold text-slate-800">{value.toLocaleString("id-ID")}</p>
+      <p className="mt-2 text-2xl font-extrabold text-[#15406A]">{value.toLocaleString("id-ID")}</p>
     </div>
   );
+}
+
+function ErrorMessage({ message }: { message: string }) {
+  return <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">{message}</div>;
 }
